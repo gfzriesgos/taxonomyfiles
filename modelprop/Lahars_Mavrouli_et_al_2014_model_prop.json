@@ -1,0 +1,119 @@
+{
+    "meta": {
+        "id": "Mavrouli_et_al_2014",
+        "assetCategory": "buildings",
+        "lossCategory": "structural",
+        "taxonomy_source": "Mavrouli_et_al_2014",
+        "damage_states": "Mavrouli_et_al_2014",
+        "format": "continuous",
+        "shape": "logncdf",
+        "description": "Mavrouli_et_al_2014, project RIESGOS",
+        "taxonomies": [
+            "RC_LD",
+            "RC_MD",
+            "RC_S_HD",
+            "W_MR_LD",
+            "W_MR_MD",
+            "W_MR_HD"
+        ],
+        
+        "limit_states": [
+            "D2",
+            "D3",
+            "D4",
+        ],
+     
+    },
+    "data": [
+        {
+            "taxonomy": "RC_LD",
+            "D2_mean": 0.42,
+            "D2_stddev": 0.26,
+            "D3_mean": 0.51,
+            "D3_stddev": 0.324,
+            "D4_mean": 0.58,
+            "D4_stddev": 0.375,
+			"id":"unique_id",
+			"imt":"maxvelocity",
+			"imu":"m/s",
+			"im_min":0.0,
+			"im_max":6.0
+        },
+        
+      
+        {
+             "taxonomy": "RC_MD",
+            "D2_mean": 0.36,
+            "D2_stddev": 0.223,
+            "D3_mean": 0.41,
+            "D3_stddev": 0.254,
+            "D4_mean": 0.84,
+            "D4_stddev": 0.619,
+			"id":"unique_id",
+			"imt":"maxvelocity",
+			"imu":"m/s",
+			"im_min":0.0,
+			"im_max":6.0
+        },
+        
+        {
+            "taxonomy": "RC_HD",
+            "D2_mean": 0.39,
+            "D2_stddev": 0.245,
+            "D3_mean": 0.50,
+            "D3_stddev": 0.321,
+            "D4_mean": 0.76,
+            "D4_stddev": 0.636,
+			"id":"unique_id",
+            "imt":"maxvelocity",
+			"imu":"m/s",
+			"im_min":0.0,
+			"im_max":6.0
+        },
+        
+        {
+           "taxonomy": "W_MR_HD",
+           "D2_mean": 0.36,
+           "D2_stddev": 0.223,
+           "D3_mean": 0.41,
+           "D3_stddev": 0.254,
+           "D4_mean": 0.84,
+           "D4_stddev": 0.619,
+           "id":"unique_id",
+           "imt":"maxvelocity",
+           "imu":"m/s",
+           "im_min":0.0,
+           "im_max":6.0
+        },
+        
+        {
+            "taxonomy": "W_MR_LD",
+            "D2_mean": 0.42,
+            "D2_stddev": 0.26,
+            "D3_mean": 0.51,
+            "D3_stddev": 0.324,
+            "D4_mean": 0.58,
+            "D4_stddev": 0.375,
+            "id":"unique_id",
+            "imt":"maxvelocity",
+            "imu":"m/s",
+            "im_min":0.0,
+            "im_max":6.0
+        },
+    
+        {
+            "taxonomy": "W_MR_LD",
+            "D2_mean": 0.42,
+            "D2_stddev": 0.26,
+            "D3_mean": 0.51,
+            "D3_stddev": 0.324,
+            "D4_mean": 0.58,
+            "D4_stddev": 0.375,
+            "id":"unique_id",
+            "imt":"maxvelocity",
+            "imu":"m/s",
+            "im_min":0.0,
+            "im_max":6.0
+        },       
+    ]
+}
