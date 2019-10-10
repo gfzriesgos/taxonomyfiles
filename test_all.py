@@ -21,9 +21,13 @@ NAME_SUPPASRI = 'SUPPASRI2013_v2.0'
 
 # not all schemas are supported for all
 # data at the moment
+# for full support all schemas should be included
+# in all kind of files
+# TODO: All should be fully supported!!!!
 SCHEMAS_WITH_EXPOSURE = [NAME_SARA]
 SCHEMAS_WITH_FRAGILITY = [NAME_SARA, NAME_HAZUS, NAME_SUPPASRI]
 SCHEMAS_WITH_MAPPING = [NAME_SARA, NAME_SUPPASRI]
+SCHEMAS_WITH_REPLACEMENT_COSTS = [NAME_SARA, NAME_SUPPASRI]
 
 class TestAll(unittest.TestCase):
     '''
@@ -55,6 +59,14 @@ class TestAll(unittest.TestCase):
         schema_mappings_by_schema = read_schema_mappings()
         for schema in SCHEMAS_WITH_MAPPING:
             self.assertIn(schema, schema_mappings_by_schema.keys())
+
+    def test_replacement_costs(self):
+        '''
+        We need the supported schemas.
+        '''
+        replacement_costs_by_schema = read_replacement_costs()
+        for schema in SCHEMAS_WITH_REPLACEMENT_COSTS:
+            self.assertIn(schema, replacement_costs_by_schema.keys())
         
 
     def test_schema_tax_from_exposure_is_in_fragility_meta(self):
@@ -231,6 +243,24 @@ def read_schema_mappings():
 
             schema_mappings_by_schema[schema].append(data)
     return schema_mappings_by_schema
+
+def read_replacement_costs():
+    replacement_costs_by_schema = {}
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    replacementcost_dir = os.path.join(current_dir, 'replacement_costs')
+    json_files = glob.glob(os.path.join(replacementcost_dir, '*.json'))
+
+    for json_file in json_files:
+        with open(json_file, 'rt') as input_file:
+            data = json.load(input_file)
+
+            schema = data['meta']['id']
+
+            replacement_costs_by_schema[schema] = data
+
+    return replacement_costs_by_schema
+
 
 
 if __name__ == '__main__':
