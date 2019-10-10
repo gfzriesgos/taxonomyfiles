@@ -165,6 +165,20 @@ class TestAll(unittest.TestCase):
             for target_taxonomy in target_taxonomies_by_target_schema[target_schema]:
                 self.assertIn(target_taxonomy, tax_fragility)
 
+    def test_no_duplicates_in_exposure_json_taxonomies(self):
+        '''
+        Tests if there are duplicates in each single taxonomy list
+        in the exposure json files.
+        '''
+
+        taxonomies_by_schema = read_exposure_json_files() 
+
+        for schema in taxonomies_by_schema.keys():
+            tax_list = taxonomies_by_schema[schema]
+            tax_set = set(tax_list)
+
+            self.assertEqual(len(tax_list), len(tax_set))
+
 
 def read_fragility_json_files():
     fragility_models_by_schema = {}
