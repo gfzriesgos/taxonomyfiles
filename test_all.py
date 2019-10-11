@@ -35,56 +35,56 @@ class TestAll(unittest.TestCase):
     to make the files and the services consistent.
     '''
 
+    def setUp(self):
+        '''
+        Setup method, so that all the test cases
+        have the following datasets.
+        '''
+        self.fragility_data = FragilityData.read_from_json_files()
+        self.exposure_data = ExposureData.read_from_json_files()
+        self.replacementcost_data = ReplacementcostData.read_from_json_files()
+        self.schemamapping_data = SchemaMappingData.read_from_json_files()
+
     def test_exposure(self):
         '''
         All the expected schemas should be included
         for the exposure.
         '''
-        taxonomies_by_schema = read_exposure_json_files() 
         for schema in SCHEMAS_WITH_EXPOSURE:
-            self.assertIn(schema, taxonomies_by_schema.keys())
+            self.assertIn(schema, self.exposure_data.get_schemas())
 
     def test_fragility_models(self):
         '''
         We also need the fragility models for the expected schemas.
         '''
-        fragility_models_by_schema = read_fragility_json_files()
         for schema in SCHEMAS_WITH_FRAGILITY:
-            self.assertIn(schema, fragility_models_by_schema.keys())
+            self.assertIn(schema, self.fragility_data.get_schemas())
 
     def test_schemamappings(self):
         '''
         We need the schema mappings.
         '''
-        schema_mappings_by_schema = read_schema_mappings()
         for schema in SCHEMAS_WITH_MAPPING:
-            self.assertIn(schema, schema_mappings_by_schema.keys())
+            self.assertIn(schema, self.schemamapping_data.get_source_schemas())
 
     def test_replacement_costs(self):
         '''
         We need the supported schemas.
         '''
-        replacement_costs_by_schema = read_replacement_costs()
         for schema in SCHEMAS_WITH_REPLACEMENT_COSTS:
-            self.assertIn(schema, replacement_costs_by_schema.keys())
-        
+            self.assertIn(schema, self.replacementcost_data.get_schemas())
 
     def test_schema_tax_from_exposure_is_in_fragility_meta(self):
         '''
         All the taxonomies from the exposure model (assetmaster)
         should be included in the the fragility functions (in their meta section).
         '''
-
-        taxonomies_by_schema = read_exposure_json_files() 
-        fragility_models_by_schema = read_fragility_json_files()
-
         for schema in SCHEMAS_WITH_EXPOSURE:
-            tax_exposure = set(taxonomies_by_schema[schema])
-            data_fragility = fragility_models_by_schema[schema]
-            tax1_fragility = set(data_fragility['meta']['taxonomies'])
+            tax_exposure = set(self.exposure_data.get_taxonomies(schema))
+            tax_fragility = set(self.fragility_data.get_taxonomies_in_meta(schema))
 
             for tax in tax_exposure:
-                self.assertIn(tax, tax1_fragility)
+                self.assertIn(tax, tax_fragility)
 
     def test_schema_tax_from_fragility_meta_is_in_exposure(self):
         '''
@@ -93,15 +93,11 @@ class TestAll(unittest.TestCase):
         we want to make sure that the taxonomies from
         the fragility models are included in the exposure model.
         '''
-        taxonomies_by_schema = read_exposure_json_files() 
-        fragility_models_by_schema = read_fragility_json_files()
-
         for schema in set(SCHEMAS_WITH_EXPOSURE) & set(SCHEMAS_WITH_MAPPING):
-            tax_exposure = set(taxonomies_by_schema[schema])
-            data_fragility = fragility_models_by_schema[schema]
-            tax1_fragility = set(data_fragility['meta']['taxonomies'])
+            tax_exposure = set(self.exposure_data.get_taxonomies(schema))
+            tax_fragility = set(self.fragility_data.get_taxonomies_in_meta(schema))
 
-            for tax in tax1_fragility:
+            for tax in tax_fragility:
                 self.assertIn(tax, tax_exposure)
 
     def test_schema_tax_from_fragility_meta_is_in_fragility_data(self):
@@ -111,12 +107,11 @@ class TestAll(unittest.TestCase):
         those in the data section.
         '''
 
-        fragility_models_by_schema = read_fragility_json_files()
+        schemas_from_fragility = self.fragility_data.get_schemas()
 
-        for key in fragility_models_by_schema.keys():
-            data_fragility = fragility_models_by_schema[key]
-            tax1_fragility = set(data_fragility['meta']['taxonomies'])
-            tax2_fragility = set(x['taxonomy'] for x in data_fragility['data'])
+        for schema in schemas_from_fragility:
+            tax1_fragility = set(self.fragility_data.get_taxonomies_in_meta(schema))
+            tax2_fragility = set(self.fragility_data.get_taxonomies_in_data(schema))
 
             for tax in tax1_fragility:
                 self.assertIn(tax, tax2_fragility)
@@ -130,15 +125,15 @@ class TestAll(unittest.TestCase):
         that we have for fragility and mapping match.
         '''
 
-        fragility_models_by_schema = read_fragility_json_files()
-        schema_mappings = read_schema_mappings()
+        schemas_by_fragility = self.fragility_data.get_schemas()
+        source_schemas_by_schemamappings = self.schemamapping_data.get_source_schemas()
 
         for schema in set(SCHEMAS_WITH_MAPPING) & set(SCHEMAS_WITH_FRAGILITY):
-            self.assertIn(schema, schema_mappings.keys())
-            self.assertIn(schema, fragility_models_by_schema.keys())
+            self.assertIn(schema, source_schemas_by_schemamappings)
+            self.assertIn(schema, schemas_by_fragility)
 
-            tax_fragility = set(fragility_models_by_schema[schema]['meta']['taxonomies'])
-            tax_schema_mapping = set(x['source_schema'] for x in schema_mappings[schema])
+            tax_fragility = self.fragility_data.get_taxonomies_in_meta(schema)
+            tax_schema_mapping = self.schemamapping_data.get_source_taxonomies(schema)
 
             for tax in tax_fragility:
                 self.assertIn(tax, tax_schema_mapping)
@@ -152,29 +147,15 @@ class TestAll(unittest.TestCase):
         (so that we can run deus again).
         '''
 
-        fragility_models_by_schema = read_fragility_json_files()
+        schemas_by_fragiltiy = self.fragility_data.get_schemas()
+        target_schemas_by_schemamappings = self.schemamapping_data.get_target_schemas()
 
-        # first get all the target schemas
-        target_taxonomies_by_target_schema = {}
+        for target_schema in target_schemas_by_schemamappings:
+            self.assertIn(target_schema, schemas_by_fragiltiy)
 
-        schema_mappings = read_schema_mappings()
-        for source_schema in schema_mappings.keys():
-            for entry in schema_mappings[source_schema]:
-                target_schema = entry['target_schema']
-                target_taxonomy = entry['target_taxonomy']
+            tax_fragility = self.fragility_data.get_taxonomies_in_meta(target_schema)
 
-                if not target_schema in target_taxonomies_by_target_schema.keys():
-                    target_taxonomies_by_target_schema[target_schema] = set()
-
-                target_taxonomies_by_target_schema[target_schema].add(target_taxonomy)
-
-        for target_schema in target_taxonomies_by_target_schema.keys():
-            self.assertIn(target_schema, fragility_models_by_schema.keys())
-
-            data_fragility = fragility_models_by_schema[target_schema]
-            tax_fragility = set(data_fragility['meta']['taxonomies'])
-
-            for target_taxonomy in target_taxonomies_by_target_schema[target_schema]:
+            for target_taxonomy in self.schemamapping_data.get_target_taxonomies(target_schema):
                 self.assertIn(target_taxonomy, tax_fragility)
 
     def test_no_duplicates_in_exposure_json_taxonomies(self):
@@ -183,84 +164,183 @@ class TestAll(unittest.TestCase):
         in the exposure json files.
         '''
 
-        taxonomies_by_schema = read_exposure_json_files() 
+        schemas_by_exposure = self.exposure_data.get_schemas()
 
-        for schema in taxonomies_by_schema.keys():
-            tax_list = taxonomies_by_schema[schema]
+        for schema in schemas_by_exposure:
+            tax_list = self.exposure_data.get_taxonomies(schema)
             tax_set = set(tax_list)
 
             self.assertEqual(len(tax_list), len(tax_set))
 
+    def test_tax_in_fragility_models_are_there_for_replacement_costs(self):
+        '''
+        Tests that the taxonomies in the fragility model are all
+        also in the replacement costs (as as we support as
+        fragility models, we want to compute the loss in deus as well.)
+        '''
 
-def read_fragility_json_files():
-    fragility_models_by_schema = {}
+        schemas_by_repl_costs = self.replacementcost_data.get_schemas()
+        schemas_by_fragility = self.fragility_data.get_schemas()
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    modelprop_dir = os.path.join(current_dir, 'modelprop')
-    json_files = glob.glob(os.path.join(modelprop_dir, '*.json'))
+        for schema in set(schemas_by_repl_costs) & set(schemas_by_fragility):
+            tax_by_repl_costs = self.replacementcost_data.get_taxonomies(schema)
+            tax_by_fragility = self.fragility_data.get_taxonomies_in_meta(schema)
 
-    for json_file in json_files:
-        with open(json_file, 'rt') as input_file:
-            data = json.load(input_file)
-            schema = data['meta']['id']
+            for tax in tax_by_fragility:
+                self.assertIn(tax, tax_by_repl_costs)
 
-            fragility_models_by_schema[schema] = data
-    return fragility_models_by_schema
-    
-
-def read_exposure_json_files():
-    taxonomies_by_schema = {}
-
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    assetmaster_dir = os.path.join(current_dir, 'assetmaster')
-    json_files = glob.glob(os.path.join(assetmaster_dir, '*.json'))
-
-    for json_file in json_files:
-        with open(json_file, 'rt') as input_file:
-            data = json.load(input_file)
-            schema = data['id']
-
-            taxonomies = data['taxonomies']
-
-            taxonomies_by_schema[schema] = taxonomies
-    return taxonomies_by_schema
+            for tax in tax_by_repl_costs:
+                self.assertIn(tax, tax_by_fragility)
 
 
-def read_schema_mappings():
-    schema_mappings_by_schema = {}
+class FragilityData():
+    def __init__(self, data):
+        self.data = data
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    schemamapping_dir = os.path.join(current_dir, 'schemamapping')
-    json_files = glob.glob(os.path.join(schemamapping_dir, '*', '*.json'))
+    @classmethod
+    def read_from_json_files(cls):
+        fragility_models_by_schema = {}
 
-    for json_file in json_files:
-        with open(json_file, 'rt') as input_file:
-            data = json.load(input_file)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        modelprop_dir = os.path.join(current_dir, 'modelprop')
+        json_files = glob.glob(os.path.join(modelprop_dir, '*.json'))
 
-            schema = data['source_schema']
-            if schema not in schema_mappings_by_schema:
-                schema_mappings_by_schema[schema] = []
+        for json_file in json_files:
+            with open(json_file, 'rt') as input_file:
+                data = json.load(input_file)
+                schema = data['meta']['id']
 
-            schema_mappings_by_schema[schema].append(data)
-    return schema_mappings_by_schema
+                fragility_models_by_schema[schema] = data
+        return cls(fragility_models_by_schema)
 
-def read_replacement_costs():
-    replacement_costs_by_schema = {}
+    def get_schemas(self):
+        return self.data.keys()
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    replacementcost_dir = os.path.join(current_dir, 'replacement_costs')
-    json_files = glob.glob(os.path.join(replacementcost_dir, '*.json'))
+    def get_taxonomies_in_meta(self, schema):
+        return self.data[schema]['meta']['taxonomies']
 
-    for json_file in json_files:
-        with open(json_file, 'rt') as input_file:
-            data = json.load(input_file)
+    def get_taxonomies_in_data(self, schema):
+        inner_data = self.data[schema]['data']
+        results = []
+        for dataset in inner_data:
+            tax = dataset['taxonomy']
+            results.append(tax)
+        return results
 
-            schema = data['meta']['id']
 
-            replacement_costs_by_schema[schema] = data
+class ExposureData():
+    def __init__(self, data):
+        self.data = data
 
-    return replacement_costs_by_schema
+    @classmethod
+    def read_from_json_files(cls):
+        taxonomies_by_schema = {}
 
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        assetmaster_dir = os.path.join(current_dir, 'assetmaster')
+        json_files = glob.glob(os.path.join(assetmaster_dir, '*.json'))
+
+        for json_file in json_files:
+            with open(json_file, 'rt') as input_file:
+                data = json.load(input_file)
+                schema = data['id']
+
+                taxonomies = data['taxonomies']
+
+                taxonomies_by_schema[schema] = taxonomies
+        return cls(taxonomies_by_schema)
+
+    def get_schemas(self):
+        return self.data.keys()
+
+    def get_taxonomies(self, schema):
+        return self.data[schema]
+
+class SchemaMappingData():
+    def __init__(self, data):
+        self.data = data
+
+    @classmethod
+    def read_from_json_files(cls):
+        datasets = []
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        schemamapping_dir = os.path.join(current_dir, 'schemamapping')
+        json_files = glob.glob(os.path.join(schemamapping_dir, '*', '*.json'))
+
+        for json_file in json_files:
+            with open(json_file, 'rt') as input_file:
+                data = json.load(input_file)
+                datasets.append(data)
+
+        return cls(datasets)
+
+    def get_source_schemas(self):
+        result = set()
+
+        for dataset in self.data:
+            source_schema = dataset['source_schema']
+            result.add(source_schema)
+
+        return result
+
+    def get_source_taxonomies(self, schema):
+        result = set()
+
+        for dataset in self.data:
+            source_schema = dataset['source_schema']
+            if schema == source_schema:
+                source_taxonomy = dataset['source_taxonomy']
+                result.add(source_taxonomy)
+        return result
+
+    def get_target_schemas(self):
+        result = set()
+        for dataset in self.data:
+            target_schema = dataset['target_schema']
+            result.add(target_schema)
+        return result
+
+    def get_target_taxonomies(self, schema):
+        result = set()
+        for dataset in self.data:
+            target_schema = dataset['target_schema']
+            if schema == target_schema:
+                target_taxonomy = dataset['target_taxonomy']
+                result.add(target_taxonomy)
+        return result
+
+class ReplacementcostData():
+    def __init__(self, data):
+        self.data = data
+
+    @classmethod
+    def read_from_json_files(cls):
+        replacement_costs_by_schema = {}
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        replacementcost_dir = os.path.join(current_dir, 'replacement_costs')
+        json_files = glob.glob(os.path.join(replacementcost_dir, '*.json'))
+
+        for json_file in json_files:
+            with open(json_file, 'rt') as input_file:
+                data = json.load(input_file)
+
+                schema = data['meta']['id']
+
+                replacement_costs_by_schema[schema] = data
+
+        return cls(replacement_costs_by_schema)
+
+    def get_schemas(self):
+        return self.data.keys()
+
+    def get_taxonomies(self, schema):
+        result = set()
+        for dataset in self.data[schema]['data']:
+            tax = dataset['taxonomy']
+            result.add(tax)
+        return result
 
 
 if __name__ == '__main__':
