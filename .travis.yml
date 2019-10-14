@@ -1,0 +1,30 @@
+dist: bionic
+language: python
+
+python:
+  - "3.7"
+
+stages:
+  - compile
+  - pep8check
+  - pylintcheck
+  - test
+
+jobs:
+  include:
+    - stage: compile
+      script:
+        - python3 -m compileall .
+    - stage: pep8check
+      install:
+        - pip3 install pycodestyle
+      script:
+        - pycodestyle *.py || true
+    - stage: pylintcheck
+      before_script:
+        - pip3 install pylint
+      script:
+        - pylint --exit-zero *.py
+    - stage: test
+      script:
+        - python3 test_all.py
