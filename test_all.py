@@ -18,10 +18,8 @@ import unittest
 # This should be the names for the schemas
 NAME_SARA = 'SARA_v1.0'
 NAME_HAZUS = 'HAZUS_v1.0'
-NAME_SUPPASRI = 'SUPPASRI2013_v2.0'
-
-# not all schemas are supported for all
-# data at the moment
+NAME_SUPPASRI = 'SUPPASRI2013_v2.0' 
+# not all schemas are supported for all # data at the moment
 # for full support all schemas should be included
 # in all kind of files
 # TODO: All should be fully supported!!!!
@@ -271,6 +269,34 @@ class TestAll(unittest.TestCase):
                 for target_damage_state in target_damage_states:
                     self.assertIn(str(target_damage_states), keys_conv_matrix[str(source_damage_states)].keys())
 
+    def test_imt_and_imu_values(self):
+        '''
+        Tests the imt and imu values.
+        '''
+
+        imt_and_imu_to_accept = {
+            NAME_SARA: {
+                'PGA': 'g',
+                'SA_01': 'g',
+                'SA_03': 'g',
+            },
+            NAME_SUPPASRI: {
+                'ID': 'm'
+            }
+        }
+
+        for schema in imt_and_imu_to_accept.keys():
+            self.assertIn(schema, self.fragility_data.get_schemas())
+            imt_and_imu_values = self.fragility_data.get_imt_and_imu_values(schema)
+
+            for imt in imt_and_imu_values.keys():
+                self.assertEqual(1, len(imt_and_imu_values[imt]))
+                imu = list(imt_and_imu_values[imt])[0]
+
+                imt_to_check = imt.upper()
+                self.assertIn(imt_to_check, imt_and_imu_to_accept[schema].keys())
+                self.assertEqual(imu, imt_and_imu_to_accept[schema][imt_to_check])
+
 
 class FragilityData():
     def __init__(self, data):
@@ -304,6 +330,19 @@ class FragilityData():
         for dataset in inner_data:
             tax = dataset['taxonomy']
             results.append(tax)
+        return results
+
+    def get_imt_and_imu_values(self, schema):
+        inner_data = self.data[schema]['data']
+
+        results = collections.defaultdict(set)
+
+        for dataset in inner_data:
+            imt = dataset['imt']
+            imu = dataset['imu']
+
+            results[imt].add(imu)
+
         return results
 
 
