@@ -277,8 +277,8 @@ class TestAll(unittest.TestCase):
         imt_and_imu_to_accept = {
             NAME_SARA: {
                 'PGA': 'g',
-                'SA_01': 'g',
-                'SA_03': 'g',
+                'SA(0.1)': 'g',
+                'SA(0.3)': 'g',
             },
             NAME_SUPPASRI: {
                 'ID': 'm'
