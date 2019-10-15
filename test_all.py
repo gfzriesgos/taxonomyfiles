@@ -15,6 +15,9 @@ import json
 import os
 import unittest
 
+import geopandas as gpd
+import pandas as pd
+
 # This should be the names for the schemas
 NAME_SARA = 'SARA_v1.0'
 NAME_HAZUS = 'HAZUS_v1.0'
@@ -43,6 +46,7 @@ class TestAll(unittest.TestCase):
         self.exposure_data = ExposureData.read_from_json_files()
         self.replacementcost_data = ReplacementcostData.read_from_json_files()
         self.schemamapping_data = SchemaMappingData.read_from_json_files()
+        self.exposure_geo_data = ExposureGeoData.read_from_gpgk_files()
 
     def test_exposure(self):
         '''
@@ -297,6 +301,17 @@ class TestAll(unittest.TestCase):
                 self.assertIn(imt_to_check, imt_and_imu_to_accept[schema].keys())
                 self.assertEqual(imu, imt_and_imu_to_accept[schema][imt_to_check])
 
+    def test_all_taxonomies_from_gpgk_are_in_json_exposure_data(self):
+        '''
+        Test that all the taxonomies in the gpgk exposure files
+        are included in the json files for the exposure.
+        '''
+        for schema in self.exposure_geo_data.get_schemas():
+            tax_json = set(self.exposure_data.get_taxonomies(schema))
+            for taxonomy in self.exposure_geo_data.get_taxonomies(schema):
+                self.assertIn(taxonomy, tax_json)
+
+
 
 class FragilityData():
     def __init__(self, data):
@@ -373,6 +388,39 @@ class ExposureData():
 
     def get_taxonomies(self, schema):
         return self.data[schema]
+
+class ExposureGeoData():
+    def __init__(self, data):
+        self.data = data
+
+    @classmethod
+    def read_from_gpgk_files(cls):
+        taxonomies_by_schema = {}
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        assetmaster_dir = os.path.join(current_dir, 'assetmaster')
+        gpkg_files = glob.glob(os.path.join(assetmaster_dir, '*.gpkg'))
+
+        for gpkg_file in gpkg_files:
+            taxonomies = set()
+            geo_data = gpd.read_file(gpkg_file)
+            for expo_str in geo_data['expo']:
+                expo = pd.DataFrame(json.loads(expo_str))
+                for tax in expo['Taxonomy']:
+                    taxonomies.add(tax)
+
+            base_filename = os.path.basename(gpkg_file)
+            schema = base_filename.replace('_data.gpkg', '')
+            taxonomies_by_schema[schema] = taxonomies
+
+        return cls(taxonomies_by_schema)
+
+    def get_schemas(self):
+        return self.data.keys()
+
+    def get_taxonomies(self, schema):
+        return self.data[schema]
+
 
 class SchemaMappingData():
     def __init__(self, data):
