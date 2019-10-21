@@ -10,6 +10,9 @@ stages:
   - pylintcheck
   - test
 
+install:
+  pip3 install geopandas
+
 jobs:
   include:
     - stage: compile
