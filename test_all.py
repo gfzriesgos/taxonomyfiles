@@ -311,6 +311,75 @@ class TestAll(unittest.TestCase):
             for taxonomy in self.exposure_geo_data.get_taxonomies(schema):
                 self.assertIn(taxonomy, tax_json)
 
+    def test_damage_states_from_fragility_files_and_schema_mapping(self):
+        '''
+        Test that all damage states, so that we can be sure that all
+        damage states from the fragility models are in the source
+        for the schema mapping (so that we don't get an unexpected
+        damage state) and that only those damage states as targets
+        are used, that are also in the fragility models.
+        '''
+
+        source_schemas = self.schemamapping_data.get_source_schemas()
+        fragility_schemas = self.fragility_data.get_schemas()
+
+        for source_schema in source_schemas:
+            self.assertIn(source_schema, fragility_schemas)
+
+            source_taxonomies = self.schemamapping_data.get_source_taxonomies(source_schema)
+            fragility_taxonomies = self.fragility_data.get_taxonomies_in_data(source_schema)
+            fragility_damage_states = self.fragility_data.get_damage_states_in_meta_with_D(source_schema)
+
+            for source_taxonomy in source_taxonomies:
+                self.assertIn(source_taxonomy, fragility_taxonomies)
+
+                source_damage_states = self.schemamapping_data.get_source_damage_states_from_conv_matrix_with_d(
+                    source_schema,
+                    source_taxonomy
+                )
+
+                # we only use defined damage states
+                # as source
+                for source_damage_state in source_damage_states:
+                    if source_damage_state == 'D0':
+                        continue
+                    self.assertIn(source_damage_state, fragility_damage_states)
+
+                # and we cover all defined damage states
+                # as sources
+                for fragility_damage_state in fragility_damage_states:
+                    self.assertIn(fragility_damage_state, source_damage_state)
+
+        target_schemas = self.schemamapping_data.get_target_schemas()
+
+        for target_schema in target_schemas:
+            self.assertIn(target_schema, fragility_schemas)
+
+            target_taxonomies = self.schemamapping_data.get_taxonomies(target_schema)
+
+            fragility_taxonomies = self.fragility_data.get_taxonomies_in_data(source_schema)
+            fragility_damage_states = self.fragility_data.get_damage_states_in_meta_with_D(source_schema)
+
+            for target_taxonomy in target_taxonomies:
+                self.assertIn(target_taxonomy, fragility_taxonomies)
+
+                target_damage_states = self.schemamapping_data.get_target_damage_states_from_conv_matrix_with_d(
+                    target_schema,
+                    target_taxonomy,
+                )
+
+                # here we only are interested, that all target damage states
+                # are defined ones
+                # we don't need to cover all defined as targets, as those may not be meaningful
+                # and can be supposed to be zero
+                for target_damage_state in target_damage_states:
+                    if target_damage_state == 'D0':
+                        continue
+                    self.assertIn(target_damage_state, fragility_damage_states)
+
+
+
+
 
 
 class FragilityData():
@@ -359,6 +428,12 @@ class FragilityData():
             results[imt].add(imu)
 
         return results
+
+    def get_damage_states_in_meta_with_D(self, schema):
+        """
+        Returns the damage states with D, so D0, D1, D2, ...
+        """
+        return self.data[schema]['meta']['limit_states']
 
 
 class ExposureData():
@@ -474,6 +549,31 @@ class SchemaMappingData():
             if schema == target_schema:
                 target_taxonomy = dataset['target_taxonomy']
                 result.add(target_taxonomy)
+        return result
+
+    def get_source_damage_states_from_conv_matrix_with_d(self, schema, taxonomy):
+        result = set()
+        for dataset in self.data:
+            source_schema = dataset['source_schema']
+            source_taxonomy = dataset['source_taxonomy']
+            if source_schema == schema and source_taxonomy == taxonomy:
+                conv_matrix = dataset['conv_matrix']
+                result = conv_matrix.keys()
+
+        result = ['D' + ds for ds in result]
+        return result
+
+    def get_target_damage_states_from_conv_matrix_with_d(self, schema, taxonomy):
+        result = set()
+        for dataset in self.data:
+            target_schema = dataset['target_schema']
+            target_taxonomy = dataset['target_taxonomy']
+            if target_schema == schema and target_taxonomy == taxonomy:
+                conv_matrix = dataset['conv_matrix']
+                for source_damage_state in conv_matrix.keys():
+                    for target_damage_state in source_damage_state.keys():
+                        result.add(target_damage_state)
+        result = ['D' + ds for ds in result]
         return result
 
 class ReplacementcostData():
