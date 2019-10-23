@@ -398,6 +398,66 @@ class TestAll(unittest.TestCase):
                 for target_damage_state in target_damage_states:
                     self.assertIn(target_damage_state, target_damage_states_not_from_conv_matrix)
 
+    def test_damage_states_for_replacement_costs(self):
+        """
+        Here we test that all replacement costs that are mentioned in
+        the fragility model are in the replacement costs (and that all
+        intermediate ones too).
+        """
+
+        repl_cost_schemas = self.replacementcost_data.get_schemas()
+        fragility_schemas = self.fragility_data.get_schemas()
+
+        for schema in repl_cost_schemas:
+            self.assertIn(schema, fragility_schemas)
+
+            repl_cost_taxonomies = self.replacementcost_data.get_taxonomies(schema)
+            fragility_taxonomies = self.fragility_data.get_taxonomies_in_meta(schema)
+
+            fragility_damage_states = self.fragility_data.get_damage_states_in_meta_with_D(schema)
+            # damage states are like D1, D2, D3, etc.; but there is no D0
+            # and we want them to be just numbers
+            pure_number_damage_states = sorted([0] + [int(ds[1:]) for ds in fragility_damage_states])
+
+            def all_but_last(damage_states):
+                # as they are sorted
+                return damage_states[:-1]
+
+            def all_higher(all_damage_states, filter_damage_state):
+                return [ds for ds in all_damage_states if ds > filter_damage_state]
+
+
+
+            repl_cost_data = self.replacementcost_data.data[schema]['data']
+
+            for repl_cost_dataset in repl_cost_data:
+                taxonomy = repl_cost_dataset['taxonomy']
+                loss_matrix = repl_cost_dataset['loss_matrix']
+
+                # loss matrix contains a structure like this
+                # {
+                #   "0": {
+                #     "1": 10,
+                #     "2": 100,
+                #     "3": 1000,
+                #   },
+                #   "1": {
+                #     "2": 90,
+                #     "3": 900,
+                # ...
+                # so that the keys are all *but the last* damage states
+                # while the inner keys are all higher damage states 
+                for ds in all_but_last(pure_number_damage_states):
+                    self.assertIn(str(ds), loss_matrix.keys())
+
+                    all_higher_ds = all_higher(pure_number_damage_states, ds)
+
+                    for higher_ds in all_higher_ds:
+                        self.assertIn(str(higher_ds), loss_matrix[str(ds)].keys())
+
+        for schema in fragility_schemas:
+            self.assertIn(schema, repl_cost_schemas)
+
 
 class FragilityData():
     def __init__(self, data):
@@ -645,7 +705,6 @@ class ReplacementcostData():
             tax = dataset['taxonomy']
             result.add(tax)
         return result
-
 
 if __name__ == '__main__':
     unittest.main()
