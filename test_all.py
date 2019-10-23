@@ -350,6 +350,19 @@ class TestAll(unittest.TestCase):
                 for fragility_damage_state in fragility_damage_states:
                     self.assertIn(fragility_damage_state, source_damage_state)
 
+                source_damage_states_not_from_conv_matrix = self.schemamapping_data.get_source_damage_states_from_data_with_d(
+                    source_schema,
+                    source_taxonomy
+                )
+
+                # check that the source damage states from the conv_matrix and those
+                # in the data section itself match
+                for source_damage_state in source_damage_states:
+                    self.assertIn(source_damage_state, source_damage_states_not_from_conv_matrix)
+                for source_damage_states in source_damage_states_not_from_conv_matrix:
+                    self.assertIn(source_damage_state, source_damage_states)
+
+
         target_schemas = self.schemamapping_data.get_target_schemas()
 
         for target_schema in target_schemas:
@@ -377,9 +390,13 @@ class TestAll(unittest.TestCase):
                         continue
                     self.assertIn(target_damage_state, fragility_damage_states)
 
+                target_damage_states_not_from_conv_matrix = self.schemamapping_data.get_target_damage_states_from_data_with_d(
+                    target_schema,
+                    target_taxonomy
+                )
 
-
-
+                for target_damage_state in target_damage_states:
+                    self.assertIn(target_damage_state, target_damage_states_not_from_conv_matrix)
 
 
 class FragilityData():
@@ -563,6 +580,17 @@ class SchemaMappingData():
         result = ['D' + ds for ds in result]
         return result
 
+    def get_source_damage_states_from_data_with_d(self, schema, taxonomy):
+        result = set()
+        for dataset in self.data:
+            source_schema = dataset['source_schema']
+            source_taxonomy = dataset['source_taxonomy']
+            if source_schema == schema and source_taxonomy == taxonomy:
+                result = result['source_damage_states']
+
+        result = ['D' + ds for ds in result]
+        return result
+
     def get_target_damage_states_from_conv_matrix_with_d(self, schema, taxonomy):
         result = set()
         for dataset in self.data:
@@ -573,6 +601,16 @@ class SchemaMappingData():
                 for source_damage_state in conv_matrix.keys():
                     for target_damage_state in source_damage_state.keys():
                         result.add(target_damage_state)
+        result = ['D' + ds for ds in result]
+        return result
+
+    def get_target_damage_states_from_data_with_d(self, schema, taxonomy):
+        result = set()
+        for dataset in self.data:
+            target_schema = dataset['target_schema']
+            target_taxonomy = dataset['target_taxonomy']
+            if target_schema == schema and target_taxonomy == taxonomy:
+                result = dataset['target_damage_states']
         result = ['D' + ds for ds in result]
         return result
 
