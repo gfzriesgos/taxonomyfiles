@@ -22,6 +22,8 @@ import pandas as pd
 NAME_SARA = 'SARA_v1.0'
 NAME_HAZUS = 'HAZUS_v1.0'
 NAME_SUPPASRI = 'SUPPASRI2013_v2.0' 
+NAME_MAVROULI = 'Mavrouli_et_al_2014'
+NAME_TORRES = 'Torres_Corredor_et_al_2017'
 # not all schemas are supported for all # data at the moment
 # for full support all schemas should be included
 # in all kind of files
@@ -30,6 +32,254 @@ SCHEMAS_WITH_EXPOSURE = [NAME_SARA]
 SCHEMAS_WITH_FRAGILITY = [NAME_SARA, NAME_HAZUS, NAME_SUPPASRI]
 SCHEMAS_WITH_MAPPING = [NAME_SARA, NAME_SUPPASRI]
 SCHEMAS_WITH_REPLACEMENT_COSTS = [NAME_SARA, NAME_SUPPASRI]
+
+def nearly1(x):
+    return 0.99 < x < 1.01
+
+SourceTargetCombination = collections.namedtuple(
+    'SourceTargetCombination',
+    'source_schema target_schema'
+)
+
+def read_json(filename):
+    with open(filename, 'rt') as input_file:
+        data = json.load(input_file)
+    return data
+
+class TestTaxMappingFiles(unittest.TestCase):
+    """
+    This Test case is only for the taxonomy mapping files.
+    """
+
+    def setUp(self):
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        json_files = glob.glob(os.path.join(current_dir, 'tax_schemamappings', '*.json'))
+
+        self.json_data = []
+
+        for json_file in json_files:
+            with open(json_file, 'rt') as input_file:
+                data = json.load(input_file)
+                self.json_data.append(data)
+
+
+    def test_all_tax_mapping_files_sum_to_1(self):
+        """
+        The sum for a source taxonomies over all
+        target taxonomies must be 1.
+        """
+
+        for dataset in self.json_data:
+            conv_matrix = dataset['conv_matrix']
+
+            for source_taxonomy in conv_matrix.keys():
+                conv_row = conv_matrix[source_taxonomy]
+
+                sum_over_row = sum(conv_row.values())
+
+                self.assertTrue(nearly1(sum_over_row))
+
+    def test_tax_mapping_supported(self):
+        """
+        Test that all the taxomomy mapping files have the supported
+        schemas.
+        """
+
+
+        schema_mappings = set()
+        for dataset in self.json_data:
+            source_schema = dataset['source_schema']
+            target_schema = dataset['target_schema']
+            schema_mappings.add(
+                SourceTargetCombination(
+                    source_schema=source_schema,
+                    target_schema=target_schema,
+                )
+            )
+
+        # we need to support the mapping from
+        # sara to supparsi
+        self.assertIn(
+            SourceTargetCombination(
+                source_schema=NAME_SARA, 
+                target_schema=NAME_SUPPASRI,
+            ),
+            schema_mappings
+        )
+
+    def test_covers_full_sara_to_suppasri_for_all_tax(self):
+        """
+        Reads the taxomomy from the exposure json file for sara
+        and checks if the all the taxonomies of sara are
+        supported.
+        """
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_file_sara = os.path.join(
+            current_dir, 
+            'assetmaster',
+            'SARA_v1.0_asset_master.json',
+        )
+
+        exposure_sara = read_json(exposure_file_sara)
+
+        sara_taxonomies = exposure_sara['taxonomies']
+
+        covered_taxonomies = set()
+
+        for dataset in self.json_data:
+            source_schema = dataset['source_schema']
+            target_schema = dataset['target_schema']
+
+            if source_schema == NAME_SARA and target_schema == NAME_SUPPASRI:
+                conv_matrix = dataset['conv_matrix']
+                taxonomies = conv_matrix.keys()
+
+                for tax in taxonomies:
+                    covered_taxonomies.add(tax)
+
+        not_covered_taxonomies = set(sara_taxonomies) - covered_taxonomies
+
+        self.assertEqual(not_covered_taxonomies, set())
+
+
+
+class TestDsMappingFiles(unittest.TestCase):
+    """
+    This test case is only for the damage state mapping
+    files.
+    """
+
+    def setUp(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        json_files = glob.glob(os.path.join(current_dir, 'ds_schemamappings', '*', '*.json'))
+
+        self.json_data = []
+        for json_file in json_files:
+            with open(json_file, 'rt') as input_file:
+                data = json.load(input_file)
+                self.json_data.append(data)
+
+
+    def test_all_ds_mapping_files_sum_to_1(self):
+        """
+        The sum for each damage state mapping between
+        schemas must be 1.
+        """
+
+        for dataset in self.json_data:
+            # because the ds files have the target damage states
+            # as toplevel keys, we can use the pandas dataframe
+            conv_matrix = pd.DataFrame(dataset['conv_matrix'])
+
+            self.assertTrue(all(conv_matrix.apply(sum, axis=1).apply(nearly1)))
+
+    def test_tax_mapping_supported(self):
+        """
+        Test that all the taxomomy mapping files have the supported
+        schemas.
+        """
+
+
+        schema_mappings = set()
+        for dataset in self.json_data:
+            source_schema = dataset['source_schema']
+            target_schema = dataset['target_schema']
+            schema_mappings.add(
+                SourceTargetCombination(
+                    source_schema=source_schema,
+                    target_schema=target_schema,
+                )
+            )
+
+        # we need to support the mapping from
+        # sara to supparsi
+        self.assertIn(
+            SourceTargetCombination(
+                source_schema=NAME_SARA, 
+                target_schema=NAME_SUPPASRI,
+            ),
+            schema_mappings
+        )
+
+    def test_covers_full_sara_to_suppasri_for_all_tax(self):
+        """
+        Reads the taxonomy from the exposure json file for sara
+        and checks if all the taxonomies of sara are supported.
+        """
+
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_file_sara = os.path.join(
+            current_dir, 
+            'assetmaster',
+            'SARA_v1.0_asset_master.json',
+        )
+
+        exposure_sara = read_json(exposure_file_sara)
+
+        sara_taxonomies = exposure_sara['taxonomies']
+
+        covered_taxonomies = set()
+
+        for dataset in self.json_data:
+            source_schema = dataset['source_schema']
+            target_schema = dataset['target_schema']
+
+            if source_schema == NAME_SARA and target_schema == NAME_SUPPASRI:
+                source_taxonomy = dataset['source_taxonomy']
+
+                covered_taxonomies.add(source_taxonomy)
+
+        not_covered_taxonomies = set(sara_taxonomies) - covered_taxonomies
+
+        self.assertEqual(not_covered_taxonomies, set())
+
+    def test_covers_full_sara_to_suppasri_for_all_ds(self):
+        """
+        Test that we cover all source damage states
+        in all the files for the sara to suppasri
+        mappings.
+        """
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        fragility_file_sara = os.path.join(
+            current_dir, 
+            'modelprop',
+            'SARA_v1.0_struct.json',
+        )
+
+        fragility_sara = read_json(fragility_file_sara)
+
+        sara_ds = set(['0'] + [x[1:] for x in fragility_sara['meta']['limit_states']])
+
+        fragility_file_suppasri = os.path.join(
+            current_dir,
+            'modelprop',
+            'SUPPASRI2013_v2.0_struct.json'
+        )
+
+        fragility_suppasri = read_json(fragility_file_suppasri)
+
+        suppasri_ds = set(['0'] + [x[1:] for x in fragility_suppasri['meta']['limit_states']])
+
+        for dataset in self.json_data:
+            source_taxonomy = dataset['source_taxonomy']
+            target_taxonomy = dataset['target_taxonomy']
+
+            if source_taxonomy == NAME_SARA and target_taxonomy == NAME_SUPPASRI:
+                conv_matrix = pd.DataFrame(dataset['conv_matrix'])
+
+                source_ds = set(conv_matrix.index)
+                target_ds = set(conv_matrix.columns)
+
+                # we need to support the full range of input damage states
+                self.assertEqual(source_ds, sara_ds)
+
+                for single_target_ds in target_ds:
+                    # and the target damage states must be those
+                    # that are defined
+                    self.assertIn(single_target_ds, suppasri_ds)
 
 class TestAll(unittest.TestCase):
     '''
