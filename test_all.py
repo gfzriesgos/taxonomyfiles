@@ -78,6 +78,16 @@ class FileLoaderMixin():
 
         return read_json(replacement_costs_json_file)
 
+    def load_replacement_costs_suppasri(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        replacement_costs_json_file = os.path.join(
+            current_dir,
+            'replacement_costs',
+            'Replacement_cost_SUPPASRI_Tsunami_v2.json', 
+        )
+
+        return read_json(replacement_costs_json_file)
+
     def load_tax_schema_mapping_sara_to_suppasri(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         tax_schema_mapping_json_file = os.path.join(
@@ -290,6 +300,12 @@ class TaxonomyAssertionMixin():
         repl_cost_taxonomies = self.get_taxonomies_from_replacement_costs(replacement_cost_data)
 
         self.assertAllTaxonomiesFromFirstAreInSecond(gpkg_taxonomies, repl_cost_taxonomies)
+
+    def assertTaxonomiesFromFragilityAndReplacementCostsMatches(self, fragility_data, replacement_cost_data):
+        fragility_taxonimies = self.get_taxonomies_from_fragility(fragility_data)
+        repl_cost_taxonomies = self.get_taxonomies_from_replacement_costs(replacement_cost_data)
+
+        self.assertAllTaxonomiesFromFirstAreInSecond(fragility_taxonimies, repl_cost_taxonomies)
 
     def assertReplacementCostSchemaMatches(self, replacement_cost_data, schema):
         repl_cost_schema = self.get_schema_from_replacement_costs(replacement_cost_data)
@@ -676,6 +692,29 @@ class TestSaraToSuppasri(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMi
 
         supported_imus = ['m']
         self.assertFragilityImusAreCoveredBySupportedImus(fragility, supported_imus)
+
+    def test_all_suppasri_taxonomies_in_fragility_model_have_replacement_costs(self):
+        """
+        When we map from sara to suppasri we have to make sure,
+        that we also have the replacement costs for all the
+        taxonomies in the fragility model.
+        """
+        fragility = self.load_fragility_suppasri()
+        replacement_costs = self.load_replacement_costs_suppasri()
+
+        self.assertReplacementCostSchemaMatches(replacement_costs, NAME_SUPPASRI)
+        self.assertTaxonomiesFromFragilityAndReplacementCostsMatches(fragility, replacement_costs)
+
+    def test_replacement_costs_suppasri_cover_all_damage_states(self):
+        """
+        Here we make sure that we cover all the damage states in the replacement
+        costs.
+        """
+
+        fragility = self.load_fragility_suppasri()
+        replacement_costs = self.load_replacement_costs_suppasri()
+
+        self.assertFragilityDamageStatesAreAllCoveredByReplacementCosts(fragility, replacement_costs)
 
 
 class TestTaxMappingFiles(unittest.TestCase):
