@@ -228,8 +228,12 @@ class TaxonomyAssertionMixin():
         self.assertAllTaxonomiesFromFirstAreInSecond(gpkg_taxonomies, json_taxonomies)
 
     def assertAllTaxonomiesFromFirstAreInSecond(self, first, second):
+        missing = []
         for taxonomy in first:
-            self.assertIn(taxonomy, second)
+            if taxonomy not in second:
+                missing.append(taxonomy)
+
+        self.assertEqual([], missing)
 
     def assertTaxonomiesFromExposureGpkgAndFragilitiesMatches(self, gpkg_data, fragility_data):
         gpkg_taxonomies = self.get_taxonomies_from_exposure_gpkg(gpkg_data)
