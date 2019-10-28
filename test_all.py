@@ -132,6 +132,9 @@ class DataGetterMixin():
 
         return gpkg_taxonomies
 
+    def get_taxonomies_from_exposure_json(self, exposure_json_data):
+        return exposure_json_data['taxonomies']
+
     def get_schema_from_exposure_json(self, exposure_json_data):
         return exposure_json_data['id']
 
@@ -220,7 +223,7 @@ class TaxonomyAssertionMixin():
         self.assertEqual(fragility_schema, schema)
 
     def assertTaxonomiesFromExposureJsonAndGpkgMatches(self, exposure_json_data, exposure_gpkg_data):
-        json_taxonomies = exposure_json_data['taxonomies']
+        json_taxonomies = self.get_taxonomies_from_exposure_json(exposure_json_data)
         gpkg_taxonomies = self.get_taxonomies_from_exposure_gpkg(exposure_gpkg_data)
 
         # we can't assume that all the taxonomies from the json file
@@ -240,6 +243,12 @@ class TaxonomyAssertionMixin():
         fragility_taxonomies = self.get_taxonomies_from_fragility(fragility_data)
 
         self.assertAllTaxonomiesFromFirstAreInSecond(gpkg_taxonomies, fragility_taxonomies)
+
+    def assertTaxonomiesFromExposureJsonAndFragilitiesMatches(self, exposure_json_data, fragility_data):
+        exposure_json_taxonomies = self.get_taxonomies_from_exposure_json(exposure_json_data)
+        fragility_taxonomies = self.get_taxonomies_from_fragility(fragility_data)
+
+        self.assertAllTaxonomiesFromFirstAreInSecond(exposure_json_taxonomies, fragility_taxonomies)
 
     def assertFragilityDamageStatesAreAllCovered(self, fragility_data):
         limit_states = self.get_limit_states_from_fragility(fragility_data)
@@ -492,6 +501,16 @@ class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataG
         # then we want to make sure that we cover all of the
         # taxonomies that we have in the exposure model
         self.assertTaxonomiesFromExposureGpkgAndFragilitiesMatches(gpkg_exposure, fragility)
+
+    def test_all_sara_taxonomies_in_exposure_json_have_fragility(self):
+        """
+        This test also tries if all the taxonomies from the expose
+        json are included in the fragility model too.
+        """
+        json_exposure = self.load_exposure_json_file_sara()
+        fragility = self.load_fragility_sara()
+
+        self.assertTaxonomiesFromExposureJsonAndFragilitiesMatches(json_exposure, fragility)
 
     def test_fragility_sara_covers_all_damage_states(self):
         """
