@@ -18,6 +18,8 @@ import unittest
 import geopandas as gpd
 import pandas as pd
 
+from testhelper import *
+
 # This should be the names for the schemas
 NAME_SARA = 'SARA_v1.0'
 NAME_HAZUS = 'HAZUS_v1.0'
@@ -33,18 +35,306 @@ SCHEMAS_WITH_FRAGILITY = [NAME_SARA, NAME_HAZUS, NAME_SUPPASRI]
 SCHEMAS_WITH_MAPPING = [NAME_SARA, NAME_SUPPASRI]
 SCHEMAS_WITH_REPLACEMENT_COSTS = [NAME_SARA, NAME_SUPPASRI]
 
-def nearly1(x):
-    return 0.99 < x < 1.01
+class FileLoaderMixin():
+    def load_exposure_json_file_sara(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_json_file = os.path.join(
+            current_dir,
+            'assetmaster', 
+            'SARA_v1.0_asset_master.json'
+        )
 
-SourceTargetCombination = collections.namedtuple(
-    'SourceTargetCombination',
-    'source_schema target_schema'
-)
+        json_exposure = read_json(exposure_json_file)
+        return json_exposure
 
-def read_json(filename):
-    with open(filename, 'rt') as input_file:
-        data = json.load(input_file)
-    return data
+    def load_exposure_gpkg_file_sara(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_gpkg_file = os.path.join(
+            current_dir,
+            'assetmaster',
+            'SARA_v1.0_data.gpkg',
+        )
+
+        return gpd.read_file(exposure_gpkg_file)
+
+    def load_fragility_sara(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        fragility_json_file = os.path.join(
+            current_dir,
+            'modelprop',
+            'SARA_v1.0_struct.json', 
+        )
+
+        return read_json(fragility_json_file)
+
+    def load_replacement_costs_sara(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        replacement_costs_json_file = os.path.join(
+            current_dir,
+            'replacement_costs', 
+            'Replacement_cost_SARA_Seismic_v1.json',
+        )
+
+        return read_json(replacement_costs_json_file)
+
+
+
+class DataGetterMixin():
+    def get_taxonomies_from_exposure_gpkg(self, exposure_gpkg_data):
+        gpkg_taxonomies = set()
+
+        for _, row in exposure_gpkg_data.iterrows():
+            expo = pd.DataFrame(json.loads(row['expo']))
+
+            for tax in expo['Taxonomy'].unique():
+                gpkg_taxonomies.add(tax)
+
+        return gpkg_taxonomies
+
+    def get_schema_from_exposure_json(self, exposure_json_data):
+        return exposure_json_data['id']
+
+    def get_schema_from_fragility(self, fragility_data):
+        return fragility_data['meta']['id']
+
+    def get_taxonomies_from_fragility(self, fragility_data):
+        inner_data = fragility_data['data']
+
+        taxonomies = set()
+
+        for dataset in inner_data:
+            taxonomy = dataset['taxonomy']
+            taxonomies.add(taxonomy)
+
+        return taxonomies
+
+    def get_limit_states_from_fragility(self, fragility_data):
+        return fragility_data['meta']['limit_states']
+
+    def get_imts_from_fragility(self, fragility_data):
+        imts = set()
+
+        for dataset in fragility_data['data']:
+            imt = dataset['imt']
+            imts.add(imt)
+
+        return imts
+
+    def get_imus_from_fragility(self, fragility_data):
+        imus = set()
+
+        for dataset in fragility_data['data']:
+            imu = dataset['imu']
+            imus.add(imu)
+
+        return imus
+
+    def get_taxonomies_from_replacement_costs(self, replacement_cost_data):
+        taxonomies = set()
+
+        for dataset in replacement_cost_data['data']:
+            taxonomy = dataset['taxonomy']
+            taxonomies.add(taxonomy)
+
+        return taxonomies
+
+    def get_schema_from_replacement_costs(self, replacement_cost_data):
+        return replacement_cost_data['meta']['id']
+
+    def get_damage_states_from_fragility_without_D_prefix_as_str_with_0(self, fragility_data):
+        limit_states = self.get_limit_states_from_fragility(fragility_data)
+
+        without_d = [x[1:] for x in limit_states]
+        as_int = [int(x) for x in without_d]
+
+        with_0 = [0] + as_int
+
+        return with_0
+
+
+
+
+
+
+class TaxonomyAssertionMixin():
+
+    def assertExpsoureJsonSchemaMatches(self, exposure_json_data, schema):
+        json_schema = self.get_schema_from_exposure_json(exposure_json_data)
+        self.assertEqual(json_schema, schema)
+
+    def assertFragilitySchemaMatches(self, fragility_data, schema):
+        fragility_schema = self.get_schema_from_fragility(fragility_data)
+        self.assertEqual(fragility_schema, schema)
+
+    def assertTaxonomiesFromExposureJsonAndGpkgMatches(self, exposure_json_data, exposure_gpkg_data):
+        json_taxonomies = exposure_json_data['taxonomies']
+        gpkg_taxonomies = self.get_taxonomies_from_exposure_gpkg(exposure_gpkg_data)
+
+        # we can't assume that all the taxonomies from the json file
+        # are included but, we can assume that it must be the other way around
+        self.assertAllTaxonomiesFromFirstAreInSecond(gpkg_taxonomies, json_taxonomies)
+
+    def assertAllTaxonomiesFromFirstAreInSecond(self, first, second):
+        for taxonomy in first:
+            self.assertIn(taxonomy, second)
+
+    def assertTaxonomiesFromExposureGpkgAndFragilitiesMatches(self, gpkg_data, fragility_data):
+        gpkg_taxonomies = self.get_taxonomies_from_exposure_gpkg(gpkg_data)
+        fragility_taxonomies = self.get_taxonomies_from_fragility(fragility_data)
+
+        self.assertAllTaxonomiesFromFirstAreInSecond(gpkg_taxonomies, fragility_taxonomies)
+
+    def assertFragilityDamageStatesAreAllCovered(self, fragility_data):
+        limit_states = self.get_limit_states_from_fragility(fragility_data)
+
+        for dataset in fragility_data['data']:
+            # we want to test every taxonomy on its own
+            covered_damage_states = set()
+
+            for possible_parameter in dataset.keys():
+                if possible_parameter.startswith('D') and possible_parameter.endswith('_mean'):
+                    damage_state = possible_parameter.replace('_mean', '')
+                    covered_damage_states.add(damage_state)
+
+            self.assertAllDamageStatesFromFirstAreInSecond(limit_states, covered_damage_states)
+
+    def assertAllDamageStatesFromFirstAreInSecond(self, first, second):
+        for ds in first:
+            self.assertIn(ds, second)
+
+    def assertFragilityImtsAreCoveredBySupportedImts(self, fragility_data, supported_imts):
+        fragility_imts = self.get_imts_from_fragility(fragility_data)
+
+        self.assertAllImtsFromFirstAreInSecond(fragility_imts, supported_imts)
+
+    def assertAllImtsFromFirstAreInSecond(self, first, second):
+        for imt in first:
+            self.assertIn(imt, second)
+
+    def assertFragilityImusAreCoveredBySupportedImus(self, fragility_data, supported_imus):
+        fragility_imus = self.get_imus_from_fragility(fragility_data)
+        self.assertAllImusFromFirstAreInSecond(fragility_imus, supported_imus)
+
+    def assertAllImusFromFirstAreInSecond(self, first, second):
+        for imu in first:
+            self.assertIn(imu, second)
+
+    def assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(self, gpkg_data, replacement_cost_data):
+        gpkg_taxonomies = self.get_taxonomies_from_exposure_gpkg(gpkg_data)
+        repl_cost_taxonomies = self.get_taxonomies_from_replacement_costs(replacement_cost_data)
+
+        self.assertAllTaxonomiesFromFirstAreInSecond(gpkg_taxonomies, repl_cost_taxonomies)
+
+    def assertReplacementCostSchemaMatches(self, replacement_cost_data, schema):
+        repl_cost_schema = self.get_schema_from_replacement_costs(replacement_cost_data)
+
+        self.assertEqual(repl_cost_schema, schema)
+
+
+    def assertFragilityDamageStatesAreAllCoveredByReplacementCosts(self, fragility_data, replacement_cost_data):
+        damage_states = sorted(self.get_damage_states_from_fragility_without_D_prefix_as_str_with_0(fragility_data))
+        all_but_highest = damage_states[:-1]
+
+        for dataset in replacement_cost_data['data']:
+            loss_matrix = dataset['loss_matrix']
+
+            for ds in all_but_highest:
+                # it is a string key
+                self.assertIn(str(ds), loss_matrix.keys())
+
+                all_higher = [x for x in damage_states if x > ds]
+
+                for higher_ds in all_higher:
+                    self.assertIn(str(higher_ds), loss_matrix[str(ds)].keys())
+
+
+class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    """
+    This test case is for testing the exposure models.
+    """
+
+    def test_all_sara_taxonomies_in_exposure_model_are_defined_in_json(self):
+        """
+        Tests that all the taxonomies that are in
+        the sara exposure model (the gpkg) are also defined
+        in the sara json file.
+
+        This is the first step to make sure, so that we can be very
+        sure that our gpkg model is correct.
+        """
+        json_exposure = self.load_exposure_json_file_sara()
+        self.assertExpsoureJsonSchemaMatches(json_exposure, NAME_SARA)
+
+        gpkg_exposure = self.load_exposure_gpkg_file_sara()
+        self.assertTaxonomiesFromExposureJsonAndGpkgMatches(json_exposure, gpkg_exposure)
+
+    def test_all_sara_taxonomies_in_exposure_model_have_fragility(self):
+        """
+        This is the next step.
+        Because we use deus, we want to have fragility functons
+        for all of the taxonomies, so that we can be sure that
+        we don't have a taxonomy in there that is not covered
+        in the fragility taxonomies.
+        """
+        gpkg_exposure = self.load_exposure_gpkg_file_sara()
+        fragility = self.load_fragility_sara()
+        
+        # first make sure that we have the right schema name in there
+        self.assertFragilitySchemaMatches(fragility, NAME_SARA)
+
+        # then we want to make sure that we cover all of the
+        # taxonomies that we have in the exposure model
+        self.assertTaxonomiesFromExposureGpkgAndFragilitiesMatches(gpkg_exposure, fragility)
+
+    def test_fragility_sara_covers_all_damage_states(self):
+        """
+        We want also to be sure that our fragility functions
+        cover all the damage states, that we need.
+        """
+
+        fragility = self.load_fragility_sara()
+        self.assertFragilityDamageStatesAreAllCovered(fragility)
+
+    def test_fragility_sara_imts(self):
+        """
+        We only support some imts.
+        """
+
+        fragility = self.load_fragility_sara()
+        supported_imts = ['PGA', 'SA(1.0)', 'SA(0.3)']
+
+        self.assertFragilityImtsAreCoveredBySupportedImts(fragility, supported_imts)
+
+    def test_fragility_sara_imus(self):
+        """
+        We also only support some limited imu values.
+        """
+        fragility = self.load_fragility_sara()
+        supported_imus = ['g']
+
+        self.assertFragilityImusAreCoveredBySupportedImus(fragility, supported_imus)
+
+    def test_all_sara_taxonomies_in_exposure_model_have_replacement_costs(self):
+        """
+        When we want to compute the loss we need the replacement costs
+        and we need that it covers all of the taxonomies from the exposure model.
+        """
+
+        gpkg_exposure = self.load_exposure_gpkg_file_sara()
+        replacement_costs = self.load_replacement_costs_sara()
+
+        self.assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(gpkg_exposure, replacement_costs)
+        self.assertReplacementCostSchemaMatches(replacement_costs, NAME_SARA)
+
+    def test_replacement_costs_sara_cover_all_damage_states(self):
+        """
+        Here we test that all of our damage states are covered in the
+        replacement costs.
+        """
+        fragility = self.load_fragility_sara()
+        replacement_costs = self.load_replacement_costs_sara()
+
+        self.assertFragilityDamageStatesAreAllCoveredByReplacementCosts(fragility, replacement_costs)
 
 class TestTaxMappingFiles(unittest.TestCase):
     """
@@ -631,252 +921,6 @@ class TestAll(unittest.TestCase):
             self.assertIn(schema, repl_cost_schemas)
 
 
-class FragilityData():
-    def __init__(self, data):
-        self.data = data
-
-    @classmethod
-    def read_from_json_files(cls):
-        fragility_models_by_schema = {}
-
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        modelprop_dir = os.path.join(current_dir, 'modelprop')
-        json_files = glob.glob(os.path.join(modelprop_dir, '*.json'))
-
-        for json_file in json_files:
-            with open(json_file, 'rt') as input_file:
-                data = json.load(input_file)
-                schema = data['meta']['id']
-
-                fragility_models_by_schema[schema] = data
-        return cls(fragility_models_by_schema)
-
-    def get_schemas(self):
-        return self.data.keys()
-
-    def get_taxonomies_in_meta(self, schema):
-        return self.data[schema]['meta']['taxonomies']
-
-    def get_taxonomies_in_data(self, schema):
-        inner_data = self.data[schema]['data']
-        results = []
-        for dataset in inner_data:
-            tax = dataset['taxonomy']
-            results.append(tax)
-        return results
-
-    def get_imt_and_imu_values(self, schema):
-        inner_data = self.data[schema]['data']
-
-        results = collections.defaultdict(set)
-
-        for dataset in inner_data:
-            imt = dataset['imt']
-            imu = dataset['imu']
-
-            results[imt].add(imu)
-
-        return results
-
-    def get_damage_states_in_meta_with_D(self, schema):
-        """
-        Returns the damage states with D, so D0, D1, D2, ...
-        """
-        return self.data[schema]['meta']['limit_states']
-
-
-class ExposureData():
-    def __init__(self, data):
-        self.data = data
-
-    @classmethod
-    def read_from_json_files(cls):
-        taxonomies_by_schema = {}
-
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        assetmaster_dir = os.path.join(current_dir, 'assetmaster')
-        json_files = glob.glob(os.path.join(assetmaster_dir, '*.json'))
-
-        for json_file in json_files:
-            with open(json_file, 'rt') as input_file:
-                data = json.load(input_file)
-                schema = data['id']
-
-                taxonomies = data['taxonomies']
-
-                taxonomies_by_schema[schema] = taxonomies
-        return cls(taxonomies_by_schema)
-
-    def get_schemas(self):
-        return self.data.keys()
-
-    def get_taxonomies(self, schema):
-        return self.data[schema]
-
-class ExposureGeoData():
-    def __init__(self, data):
-        self.data = data
-
-    @classmethod
-    def read_from_gpgk_files(cls):
-        taxonomies_by_schema = {}
-
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        assetmaster_dir = os.path.join(current_dir, 'assetmaster')
-        gpkg_files = glob.glob(os.path.join(assetmaster_dir, '*.gpkg'))
-
-        for gpkg_file in gpkg_files:
-            taxonomies = set()
-            geo_data = gpd.read_file(gpkg_file)
-            for expo_str in geo_data['expo']:
-                expo = pd.DataFrame(json.loads(expo_str))
-                for tax in expo['Taxonomy']:
-                    taxonomies.add(tax)
-
-            base_filename = os.path.basename(gpkg_file)
-            schema = base_filename.replace('_data.gpkg', '')
-            taxonomies_by_schema[schema] = taxonomies
-
-        return cls(taxonomies_by_schema)
-
-    def get_schemas(self):
-        return self.data.keys()
-
-    def get_taxonomies(self, schema):
-        return self.data[schema]
-
-
-class SchemaMappingData():
-    def __init__(self, data):
-        self.data = data
-
-    @classmethod
-    def read_from_json_files(cls):
-        datasets = []
-
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        schemamapping_dir = os.path.join(current_dir, 'schemamapping')
-        json_files = glob.glob(os.path.join(schemamapping_dir, '*', '*.json'))
-
-        for json_file in json_files:
-            with open(json_file, 'rt') as input_file:
-                data = json.load(input_file)
-                datasets.append(data)
-
-        return cls(datasets)
-
-    def get_source_schemas(self):
-        result = set()
-
-        for dataset in self.data:
-            source_schema = dataset['source_schema']
-            result.add(source_schema)
-
-        return result
-
-    def get_source_taxonomies(self, schema):
-        result = set()
-
-        for dataset in self.data:
-            source_schema = dataset['source_schema']
-            if schema == source_schema:
-                source_taxonomy = dataset['source_taxonomy']
-                result.add(source_taxonomy)
-        return result
-
-    def get_target_schemas(self):
-        result = set()
-        for dataset in self.data:
-            target_schema = dataset['target_schema']
-            result.add(target_schema)
-        return result
-
-    def get_target_taxonomies(self, schema):
-        result = set()
-        for dataset in self.data:
-            target_schema = dataset['target_schema']
-            if schema == target_schema:
-                target_taxonomy = dataset['target_taxonomy']
-                result.add(target_taxonomy)
-        return result
-
-    def get_source_damage_states_from_conv_matrix_with_d(self, schema, taxonomy):
-        result = set()
-        for dataset in self.data:
-            source_schema = dataset['source_schema']
-            source_taxonomy = dataset['source_taxonomy']
-            if source_schema == schema and source_taxonomy == taxonomy:
-                conv_matrix = dataset['conv_matrix']
-                result = conv_matrix.keys()
-
-        result = ['D' + ds for ds in result]
-        return result
-
-    def get_source_damage_states_from_data_with_d(self, schema, taxonomy):
-        result = set()
-        for dataset in self.data:
-            source_schema = dataset['source_schema']
-            source_taxonomy = dataset['source_taxonomy']
-            if source_schema == schema and source_taxonomy == taxonomy:
-                result = result['source_damage_states']
-
-        result = ['D' + ds for ds in result]
-        return result
-
-    def get_target_damage_states_from_conv_matrix_with_d(self, schema, taxonomy):
-        result = set()
-        for dataset in self.data:
-            target_schema = dataset['target_schema']
-            target_taxonomy = dataset['target_taxonomy']
-            if target_schema == schema and target_taxonomy == taxonomy:
-                conv_matrix = dataset['conv_matrix']
-                for source_damage_state in conv_matrix.keys():
-                    for target_damage_state in source_damage_state.keys():
-                        result.add(target_damage_state)
-        result = ['D' + ds for ds in result]
-        return result
-
-    def get_target_damage_states_from_data_with_d(self, schema, taxonomy):
-        result = set()
-        for dataset in self.data:
-            target_schema = dataset['target_schema']
-            target_taxonomy = dataset['target_taxonomy']
-            if target_schema == schema and target_taxonomy == taxonomy:
-                result = dataset['target_damage_states']
-        result = ['D' + ds for ds in result]
-        return result
-
-class ReplacementcostData():
-    def __init__(self, data):
-        self.data = data
-
-    @classmethod
-    def read_from_json_files(cls):
-        replacement_costs_by_schema = {}
-
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        replacementcost_dir = os.path.join(current_dir, 'replacement_costs')
-        json_files = glob.glob(os.path.join(replacementcost_dir, '*.json'))
-
-        for json_file in json_files:
-            with open(json_file, 'rt') as input_file:
-                data = json.load(input_file)
-
-                schema = data['meta']['id']
-
-                replacement_costs_by_schema[schema] = data
-
-        return cls(replacement_costs_by_schema)
-
-    def get_schemas(self):
-        return self.data.keys()
-
-    def get_taxonomies(self, schema):
-        result = set()
-        for dataset in self.data[schema]['data']:
-            tax = dataset['taxonomy']
-            result.add(tax)
-        return result
 
 if __name__ == '__main__':
     unittest.main()
