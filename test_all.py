@@ -27,14 +27,6 @@ NAME_HAZUS = 'HAZUS_v1.0'
 NAME_SUPPASRI = 'SUPPASRI2013_v2.0' 
 NAME_MAVROULI = 'Mavrouli_et_al_2014'
 NAME_TORRES = 'Torres_Corredor_et_al_2017'
-# not all schemas are supported for all # data at the moment
-# for full support all schemas should be included
-# in all kind of files
-# TODO: All should be fully supported!!!!
-SCHEMAS_WITH_EXPOSURE = [NAME_SARA]
-SCHEMAS_WITH_FRAGILITY = [NAME_SARA, NAME_HAZUS, NAME_SUPPASRI]
-SCHEMAS_WITH_MAPPING = [NAME_SARA, NAME_SUPPASRI]
-SCHEMAS_WITH_REPLACEMENT_COSTS = [NAME_SARA, NAME_SUPPASRI]
 
 class FileLoaderMixin():
     def load_exposure_json_file_sara(self):
@@ -64,6 +56,36 @@ class FileLoaderMixin():
             current_dir,
             'modelprop',
             'SARA_v1.0_struct.json', 
+        )
+
+        return read_json(fragility_json_file)
+
+    def load_fragility_mavrouli(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        fragility_json_file = os.path.join(
+            current_dir,
+            'modelprop',
+            'Mavrouli_et_al_2014_struct.json',
+        )
+
+        return read_json(fragility_json_file)
+
+    def load_fragility_torres(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        fragility_json_file = os.path.join(
+            current_dir,
+            'modelprop',
+            'Ash-Fall_Torres_Corredor_et_al_2017-Fragility.json',
+        )
+
+        return read_json(fragility_json_file)
+
+    def load_fragility_hazus(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        fragility_json_file = os.path.join(
+            current_dir,
+            'modelprop',
+            'HAZUS_v1.0_struct.json',
         )
 
         return read_json(fragility_json_file)
@@ -952,6 +974,32 @@ class TestDsMappingFiles(unittest.TestCase):
                     # that are defined
                     self.assertIn(single_target_ds, suppasri_ds)
 
+class TestMavrouli(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    """
+    This is the test case for the Mavrouli files (lahar).
+    """
 
+    def test_fragility_file_matches_expected_structure(self):
+        fragility = self.load_fragility_mavrouli()
+        self.assertFragilityStructureMatches(fragility)
+
+class TestTorres(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    """
+    This is the test case for the Torres files (ashfalls).
+    """
+
+    def test_fragility_file_matches_expected_structure(self):
+        fragility = self.load_fragility_torres()
+        self.assertFragilityStructureMatches(fragility)
+
+
+class TestHazus(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    """
+    This is the test case for the hazus files (also earthquakes.
+    """
+
+    def test_fragility_file_matches_expected_structure(self):
+        fragility = self.load_fragility_hazus()
+        self.assertFragilityStructureMatches(fragility)
 if __name__ == '__main__':
     unittest.main()
