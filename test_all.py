@@ -15,6 +15,7 @@ import json
 import os
 import unittest
 
+import numpy as np
 import geopandas as gpd
 import pandas as pd
 
@@ -76,6 +77,46 @@ class FileLoaderMixin():
         )
 
         return read_json(replacement_costs_json_file)
+
+    def load_tax_schema_mapping_sara_to_suppasri(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        tax_schema_mapping_json_file = os.path.join(
+            current_dir,
+            'tax_schemamappings', 
+            'Conversion_Matrix_SARA_Suppasri_completed.json', 
+        )
+
+        return read_json(tax_schema_mapping_json_file)
+
+    def load_fragility_suppasri(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        fragility_json_file = os.path.join(
+            current_dir,
+            'modelprop', 
+            'SUPPASRI2013_v2.0_struct.json',
+        )
+
+        return read_json(fragility_json_file)
+
+    def load_ds_schema_mappings_sara_to_suppasri(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        ds_schema_mapping_json_files = glob.glob(os.path.join(
+            current_dir,
+            'ds_schemamappings',
+            '*', 
+            '*.json', 
+        ))
+
+        ds_schema_mappings = [read_json(x) for x in ds_schema_mapping_json_files]
+
+        result = [
+            mapping for mapping in ds_schema_mappings
+            if mapping['source_schema'] == NAME_SARA
+            and mapping['target_schema'] == NAME_SUPPASRI
+        ]
+
+        return result
+
 
 
 
@@ -141,7 +182,7 @@ class DataGetterMixin():
     def get_schema_from_replacement_costs(self, replacement_cost_data):
         return replacement_cost_data['meta']['id']
 
-    def get_damage_states_from_fragility_without_D_prefix_as_str_with_0(self, fragility_data):
+    def get_damage_states_from_fragility_without_D_prefix_as_int_with_0(self, fragility_data):
         limit_states = self.get_limit_states_from_fragility(fragility_data)
 
         without_d = [x[1:] for x in limit_states]
@@ -151,8 +192,20 @@ class DataGetterMixin():
 
         return with_0
 
+    def get_source_taxonomies_from_tax_schema_mapping(self, tax_schema_mapping_data):
+        conv_matrix = tax_schema_mapping_data['conv_matrix']
+        return conv_matrix.keys()
 
+    def get_target_taxonomies_from_tax_schema_mapping(self, tax_schema_mapping_data):
+        target_taxonomies = set()
+        
+        conv_matrix = tax_schema_mapping_data['conv_matrix']
 
+        for source_taxonomy in conv_matrix.keys():
+            for target_taxonomy in conv_matrix[source_taxonomy].keys():
+                target_taxonomies.add(target_taxonomy)
+
+        return target_taxonomies
 
 
 
@@ -232,7 +285,7 @@ class TaxonomyAssertionMixin():
 
 
     def assertFragilityDamageStatesAreAllCoveredByReplacementCosts(self, fragility_data, replacement_cost_data):
-        damage_states = sorted(self.get_damage_states_from_fragility_without_D_prefix_as_str_with_0(fragility_data))
+        damage_states = sorted(self.get_damage_states_from_fragility_without_D_prefix_as_int_with_0(fragility_data))
         all_but_highest = damage_states[:-1]
 
         for dataset in replacement_cost_data['data']:
@@ -247,10 +300,143 @@ class TaxonomyAssertionMixin():
                 for higher_ds in all_higher:
                     self.assertIn(str(higher_ds), loss_matrix[str(ds)].keys())
 
+    def assertTaxonomiesFromExposureGpkgAndSourceTaxonomiesForTaxMappingMatches(self, gpkg_data, tax_schema_mapping_data):
+        exposure_taxonomies = self.get_taxonomies_from_exposure_gpkg(gpkg_data)
+        source_taxonomies = self.get_source_taxonomies_from_tax_schema_mapping(tax_schema_mapping_data)
+
+        self.assertAllTaxonomiesFromFirstAreInSecond(exposure_taxonomies, source_taxonomies)
+
+    def assertTaxonomySchemaMappingsSumTo1(self, tax_schema_mapping_data):
+        conv_matrix = tax_schema_mapping_data['conv_matrix']
+
+        for source_taxonomy in conv_matrix.keys():
+            sum_so_far = 0.0
+
+            for target_taxonomy in conv_matrix[source_taxonomy].keys():
+                val = conv_matrix[source_taxonomy][target_taxonomy]
+                sum_so_far += val
+
+            self.assertInRange(0.99, sum_so_far, 1.01)
+
+    def assertInRange(self, lower, x, upper):
+        self.assertLess(lower, x)
+        self.assertLess(x, upper)
+
+    def assertTaxonomyTargetSchemaMappingCoveredByFragilityModel(self, tax_schema_mapping_data, fragility_data):
+        target_taxonimies = self.get_target_taxonomies_from_tax_schema_mapping(tax_schema_mapping_data)
+        fragility_taxonomies = self.get_taxonomies_from_fragility(fragility_data)
+
+        self.assertAllTaxonomiesFromFirstAreInSecond(target_taxonimies, fragility_taxonomies)
+
+    def assertAllFragilityDamageStatesCoveredBySchemaSourceDamageStates(self, fragility_data, ds_schema_mappings):
+        # important to have it here as strings
+        damage_states = [str(x) for x in self.get_damage_states_from_fragility_without_D_prefix_as_int_with_0(fragility_data)]
+
+        for mapping_dataset in ds_schema_mappings:
+            conv_matrix = mapping_dataset['conv_matrix']
+            for target_damage_state in conv_matrix.keys():
+                source_damage_states = conv_matrix[target_damage_state].keys()
+
+                self.assertAllDamageStatesFromFirstAreInSecond(damage_states, source_damage_states)
+
+    def assertAllTargetDamageStatesCoveredByFragilityDamageStates(self, ds_schema_mappings, fragility_data):
+        damage_states = [str(x) for x in self.get_damage_states_from_fragility_without_D_prefix_as_int_with_0(fragility_data)]
+
+        for mapping_dataset in ds_schema_mappings:
+            conv_matrix = mapping_dataset['conv_matrix']
+            self.assertAllDamageStatesFromFirstAreInSecond(conv_matrix.keys(), damage_states)
+
+
+    def assertDamageStateMappingsForAllSourceTargetCombinationsByTaxMapping(self, ds_schema_mappings, tax_schema_mapping_data):
+        MissingSourceTargetDsMapping = collections.namedtuple('MissingSourceTargetDsMapping', 'source_taxonomy target_taxonomy')
+        missing_mappings = set()
+
+        for source_taxonomy in tax_schema_mapping_data['conv_matrix'].keys():
+            for target_taxonomy in tax_schema_mapping_data['conv_matrix'][source_taxonomy]:
+
+                #happens = tax_schema_mapping_data['conv_matrix'][source_taxonomy][target_taxonomy] > 0.0
+
+                possible_ds_mappings = [
+                    x for x in ds_schema_mappings
+                    if x['source_taxonomy'] == source_taxonomy
+                    and x['target_taxonomy'] == target_taxonomy
+                ]
+
+                if not possible_ds_mappings:
+                    missing_mappings.add(MissingSourceTargetDsMapping(source_taxonomy=source_taxonomy, target_taxonomy=target_taxonomy))
+
+        self.assertEqual(set(), missing_mappings)
+
+    def assertDamageStateMappingsSourceSchemaMatches(self, ds_schema_mappings, schema):
+        for dataset in ds_schema_mappings:
+            source_schema = dataset['source_schema']
+            self.assertEqual(source_schema, schema)
+
+    def assertDamageStateMappingsTargetSchemaMatches(self, ds_schema_mappings, schema):
+        for dataset in ds_schema_mappings:
+            target_schema = dataset['target_schema']
+            self.assertEqual(target_schema, schema)
+
+
+    def assertGpkgExposureStructureMatches(self, gpkg_data):
+        expected_top_level_columns = ['gid', 'name', 'expo', 'geometry']
+        actual_columns = gpkg_data.columns
+
+        for column in expected_top_level_columns:
+            self.assertIn(column, actual_columns)
+
+        for column in actual_columns:
+            if column != 'id':
+                self.assertIn(column, expected_top_level_columns)
+
+        expected_expo_columns = ['id', 'Region', 'Taxonomy', 'Dwellings', 'Buildings', 'Repl-cost-USD-bdg', 'Population', 'name', 'Damage']
+
+        for _, row in gpkg_data.iterrows():
+            self.assertEqual(type(row['expo']), str)
+
+            expo = pd.DataFrame(json.loads(row['expo']))
+
+            actual_expo_columns = expo.columns
+
+            self.assertEqual(set(expected_expo_columns), set(actual_expo_columns))
+            self.assertIn(expo.dtypes['Buildings'], [np.dtype('float64'), np.dtype('int64')])
+
+    def assertFragilityStructureMatches(self, fragility_data):
+        # we need to have the schema in the id field
+        self.assertIn('meta', fragility_data.keys())
+        self.assertIn('id', fragility_data['meta'].keys())
+
+        self.assertIsNotNone(fragility_data['meta']['id'])
+
+        # then we need to have the shape value
+        self.assertIn('shape', fragility_data['meta'].keys())
+        self.assertIsNotNone(fragility_data['meta']['shape'])
+
+        # then we need to have the data
+        self.assertIn('data', fragility_data.keys())
+        # this must be an array
+        # with contents
+        self.assertLess(0, len(fragility_data['data']))
+
+        for dataset in fragility_data['data']:
+            self.assertIn('taxonomy', dataset.keys())
+            self.assertIsNotNone(dataset['taxonomy'])
+            self.assertIn('imt', dataset.keys())
+            self.assertIsNotNone(dataset['imt'])
+            self.assertIn('imu', dataset.keys())
+            self.assertIsNotNone(dataset['imu'])
+
+
+
+    def assertFragilityShapesAreCoveredBySupportedShapes(self, fragility_data, supported_schapes):
+        shape = fragility_data['meta']['shape']
+        self.assertIn(shape, supported_schapes)
+
+
 
 class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
-    This test case is for testing the exposure models.
+    This test case is for testing the chain for the sara model.
     """
 
     def test_all_sara_taxonomies_in_exposure_model_are_defined_in_json(self):
@@ -267,6 +453,23 @@ class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataG
 
         gpkg_exposure = self.load_exposure_gpkg_file_sara()
         self.assertTaxonomiesFromExposureJsonAndGpkgMatches(json_exposure, gpkg_exposure)
+
+    def test_gpkg_has_expected_structure(self):
+        """
+        This is the test to check that the gpkg file has the structure
+        to work with it in deus.
+        """
+
+        gpkg_exposure = self.load_exposure_gpkg_file_sara()
+        self.assertGpkgExposureStructureMatches(gpkg_exposure)
+
+    def test_fragility_model_has_expected_structure(self):
+        """
+        This is the test to check that the structure of the fragility
+        file is as expected.
+        """
+        fragility = self.load_fragility_sara()
+        self.assertFragilityStructureMatches(fragility)
 
     def test_all_sara_taxonomies_in_exposure_model_have_fragility(self):
         """
@@ -314,6 +517,15 @@ class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataG
 
         self.assertFragilityImusAreCoveredBySupportedImus(fragility, supported_imus)
 
+    def test_fragility_shape(self):
+        """
+        We must make sure that a function is used that we can deal with.
+        """
+        fragility = self.load_fragility_sara()
+        supported_shapes = ['logncdf']
+
+        self.assertFragilityShapesAreCoveredBySupportedShapes(fragility, supported_shapes)
+
     def test_all_sara_taxonomies_in_exposure_model_have_replacement_costs(self):
         """
         When we want to compute the loss we need the replacement costs
@@ -335,6 +547,113 @@ class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataG
         replacement_costs = self.load_replacement_costs_sara()
 
         self.assertFragilityDamageStatesAreAllCoveredByReplacementCosts(fragility, replacement_costs)
+
+
+class TestSaraToSuppasri(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    """
+    This is the test case explicit for the chain from sara to suppasri.
+    """
+
+    def test_all_sara_taxonomies_are_covered_by_tax_schema_mapping(self):
+        """
+        This is the test that we can map all of the taxonomies from
+        sara to suppasri (so all are covered).
+        """
+
+        gpkg_exposure_sara = self.load_exposure_gpkg_file_sara()
+        tax_schema_mappings_sara_to_suppasri = self.load_tax_schema_mapping_sara_to_suppasri()
+
+        self.assertTaxonomiesFromExposureGpkgAndSourceTaxonomiesForTaxMappingMatches(
+            gpkg_exposure_sara,
+            tax_schema_mappings_sara_to_suppasri,
+        )
+
+    def test_target_taxonomies_sum_to_1(self):
+        """
+        We must make sure that all we don't add or remove a
+        building by the schema mapping for the taxonomy mapping.
+        """
+        tax_schema_mappings_sara_to_suppasri = self.load_tax_schema_mapping_sara_to_suppasri()
+        self.assertTaxonomySchemaMappingsSumTo1(tax_schema_mappings_sara_to_suppasri)
+
+    def test_target_taxonomies_are_in_fragility_model(self):
+        """
+        We also must make sure that we have fragility models for all of your target
+        taxonomies.
+        """
+        tax_schema_mappings_sara_to_suppasri = self.load_tax_schema_mapping_sara_to_suppasri()
+        fragility = self.load_fragility_suppasri()
+
+        self.assertTaxonomyTargetSchemaMappingCoveredByFragilityModel(
+            tax_schema_mappings_sara_to_suppasri, 
+            fragility
+        )
+
+    def test_damage_state_specifics_cover_all_tax_mappings(self):
+        """
+        We must make sure that we can be sure, that all the damage state
+        mappings (that are specific to the source and target taxonomies)
+        are covered. As source we use the tax schema mapping.
+        """
+        tax_schema_mapping = self.load_tax_schema_mapping_sara_to_suppasri()
+        ds_schema_mappings = self.load_ds_schema_mappings_sara_to_suppasri()
+
+        self.assertDamageStateMappingsForAllSourceTargetCombinationsByTaxMapping(
+            ds_schema_mappings,
+            tax_schema_mapping
+        )
+
+    def test_all_source_damage_states_in_ds_schema_mappings(self):
+        """
+        This is the test to check if all of our source damage states
+        are covered by the the damage state mapping.
+        Since this they are specific for each taxonomy this is way harder
+        than before.
+        """
+
+        fragility_sara = self.load_fragility_sara()
+        ds_schema_mapingss_sara_to_suppasri = self.load_ds_schema_mappings_sara_to_suppasri()
+
+        self.assertAllFragilityDamageStatesCoveredBySchemaSourceDamageStates(fragility_sara, ds_schema_mapingss_sara_to_suppasri)
+
+    def test_all_target_damage_states_in_fragility_model(self):
+        """
+        We must make sure that all our target damage states have
+        asociated fragility functions.
+        """
+        fragility_suppasri = self.load_fragility_suppasri()
+
+        ds_schema_mapingss_sara_to_suppasri = self.load_ds_schema_mappings_sara_to_suppasri()
+
+        self.assertAllTargetDamageStatesCoveredByFragilityDamageStates(ds_schema_mapingss_sara_to_suppasri, fragility_suppasri)
+
+    def test_all_damage_state_mappings_use_right_schemas(self):
+        """
+        We must make sure that the source schema is right.
+        """
+
+        ds_schema_mapingss_sara_to_suppasri = self.load_ds_schema_mappings_sara_to_suppasri()
+
+        self.assertDamageStateMappingsSourceSchemaMatches(ds_schema_mapingss_sara_to_suppasri, NAME_SARA)
+        self.assertDamageStateMappingsTargetSchemaMatches(ds_schema_mapingss_sara_to_suppasri, NAME_SUPPASRI)
+
+    def test_suppasri_fragility_schema(self):
+        fragility = self.load_fragility_suppasri()
+
+        self.assertFragilitySchemaMatches(fragility, NAME_SUPPASRI)
+
+    def test_suppasri_fragility_imts(self):
+        fragility = self.load_fragility_suppasri()
+
+        supported_imts = ['MWH', 'ID']
+        self.assertFragilityImtsAreCoveredBySupportedImts(fragility, supported_imts)
+
+    def test_suppasri_fragility_imus(self):
+        fragility = self.load_fragility_suppasri()
+
+        supported_imus = ['m']
+        self.assertFragilityImusAreCoveredBySupportedImus(fragility, supported_imus)
+
 
 class TestTaxMappingFiles(unittest.TestCase):
     """
