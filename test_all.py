@@ -50,6 +50,17 @@ class FileLoaderMixin():
 
         return gpd.read_file(exposure_gpkg_file)
 
+    def load_exposure_gpkg_file_sara_peru(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_gpkg_file = os.path.join(
+            current_dir,
+            'assetmaster', 
+            'Lima-Callao_SARA_Exposure_V1.gpkg',
+        )
+
+        return gpd.read_file(exposure_gpkg_file)
+
+
     def load_fragility_sara(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         fragility_json_file = os.path.join(
@@ -483,7 +494,30 @@ class TaxonomyAssertionMixin():
         shape = fragility_data['meta']['shape']
         self.assertIn(shape, supported_schapes)
 
+class TestSaraPeru(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    """
+    This is the test case for the exposure model for peru (also sara).
+    """
 
+    def test_all_sara_taxonomies_in_exposure_model_are_defined_in_json(self):
+        """
+        This test ensures that all of the taxonomies used in the
+        exposure model for peru are also in the json exposure file
+        for for sara (defining the taxonomies).
+        """
+        json_exposure = self.load_exposure_json_file_sara()
+        gpkg_exposure = self.load_exposure_gpkg_file_sara_peru()
+        self.assertTaxonomiesFromExposureJsonAndGpkgMatches(json_exposure, gpkg_exposure)
+
+
+    def test_gpkg_has_expected_structure(self):
+        """
+        This si the test to ensure that the gpkg file has the structure to
+        work with it in deus.
+        """
+
+        gpkg_exposure_peru = self.load_exposure_gpkg_file_sara_peru()
+        self.assertGpkgExposureStructureMatches(gpkg_exposure_peru)
 
 class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
