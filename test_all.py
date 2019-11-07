@@ -519,6 +519,36 @@ class TestSaraPeru(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, D
         gpkg_exposure_peru = self.load_exposure_gpkg_file_sara_peru()
         self.assertGpkgExposureStructureMatches(gpkg_exposure_peru)
 
+    def test_all_sara_taxonomies_in_exposure_model_have_fragility(self):
+        """
+        This is the next step.
+        Because we use deus, we want to have fragility functons
+        for all of the taxonomies, so that we can be sure that
+        we don't have a taxonomy in there that is not covered
+        in the fragility taxonomies.
+        """
+        gpkg_exposure = self.load_exposure_gpkg_file_sara_peru()
+        fragility = self.load_fragility_sara()
+        
+        # first make sure that we have the right schema name in there
+        self.assertFragilitySchemaMatches(fragility, NAME_SARA)
+
+        # then we want to make sure that we cover all of the
+        # taxonomies that we have in the exposure model
+        self.assertTaxonomiesFromExposureGpkgAndFragilitiesMatches(gpkg_exposure, fragility)
+
+    def test_all_sara_taxonomies_in_exposure_model_have_replacement_costs(self):
+        """
+        When we want to compute the loss we need the replacement costs
+        and we need that it covers all of the taxonomies from the exposure model.
+        """
+
+        gpkg_exposure = self.load_exposure_gpkg_file_sara_peru()
+        replacement_costs = self.load_replacement_costs_sara()
+
+        self.assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(gpkg_exposure, replacement_costs)
+        self.assertReplacementCostSchemaMatches(replacement_costs, NAME_SARA)
+
 class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
     This test case is for testing the chain for the sara model.
