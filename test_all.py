@@ -55,7 +55,7 @@ class FileLoaderMixin():
         exposure_gpkg_file = os.path.join(
             current_dir,
             'assetmaster', 
-            'Lima-Callao_SARA_Exposure_V1.gpkg',
+            'Lima-Callao_SARA_Exposure_V4.gpkg',
         )
 
         return gpd.read_file(exposure_gpkg_file)
