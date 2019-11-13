@@ -60,6 +60,25 @@ class FileLoaderMixin():
 
         return gpd.read_file(exposure_gpkg_file)
 
+    def load_exposure_gpkg_file_mavrouli(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_gpkg_file = os.path.join(
+            current_dir,
+            'assetmaster',
+            'Latacunga_Lahar_Mavrouli_et_al_2014_v1.0_data.gpkg', 
+        )
+
+        return gpd.read_file(exposure_gpkg_file)
+
+    def load_exposure_gpkg_file_torres(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_gpkg_file = os.path.join(
+            current_dir,
+            'assetmaster',
+            'Latacunga_Ash_Fall_Torres_Corredor_2017_v1.0_data.gpkg',
+        )
+
+        return gpd.read_file(exposure_gpkg_file)
 
     def load_fragility_sara(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -512,7 +531,7 @@ class TestSaraPeru(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, D
 
     def test_gpkg_has_expected_structure(self):
         """
-        This si the test to ensure that the gpkg file has the structure to
+        This is the test to ensure that the gpkg file has the structure to
         work with it in deus.
         """
 
@@ -1038,7 +1057,7 @@ class TestDsMappingFiles(unittest.TestCase):
                     # that are defined
                     self.assertIn(single_target_ds, suppasri_ds)
 
-class TestMavrouli(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
     This is the test case for the Mavrouli files (lahar).
     """
@@ -1047,7 +1066,14 @@ class TestMavrouli(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, D
         fragility = self.load_fragility_mavrouli()
         self.assertFragilityStructureMatches(fragility)
 
-class TestTorres(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    def test_gpkg_has_expected_structure(self):
+        """
+        Test for the structure of the gkpg file.
+        """
+        gpkg_exposure_mavrouli = self.load_exposure_gpkg_file_mavrouli()
+        self.assertGpkgExposureStructureMatches(gpkg_exposure_mavrouli)
+
+class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
     This is the test case for the Torres files (ashfalls).
     """
@@ -1056,6 +1082,12 @@ class TestTorres(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, Dat
         fragility = self.load_fragility_torres()
         self.assertFragilityStructureMatches(fragility)
 
+    def test_gpkg_has_expected_structure(self):
+        """
+        Test for the structure of the gkpg file.
+        """
+        gpkg_exposure_torres = self.load_exposure_gpkg_file_torres()
+        self.assertGpkgExposureStructureMatches(gpkg_exposure_torres)
 
 class TestHazus(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
@@ -1065,5 +1097,6 @@ class TestHazus(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, Data
     def test_fragility_file_matches_expected_structure(self):
         fragility = self.load_fragility_hazus()
         self.assertFragilityStructureMatches(fragility)
+
 if __name__ == '__main__':
     unittest.main()
