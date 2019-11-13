@@ -378,6 +378,12 @@ class TaxonomyAssertionMixin():
         for imu in first:
             self.assertIn(imu, second)
 
+    def assertTaxonomiesFromExposureJsonAndReplacementCostsMatches(self, json_data, replacement_cost_data):
+        json_taxonomies = self.get_taxonomies_from_exposure_json(json_data)
+        repl_cost_taxonomies = self.get_taxonomies_from_replacement_costs(replacement_cost_data)
+
+        self.assertAllTaxonomiesFromFirstAreInSecond(json_taxonomies, repl_cost_taxonomies)
+
     def assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(self, gpkg_data, replacement_cost_data):
         gpkg_taxonomies = self.get_taxonomies_from_exposure_gpkg(gpkg_data)
         repl_cost_taxonomies = self.get_taxonomies_from_replacement_costs(replacement_cost_data)
@@ -1121,6 +1127,15 @@ class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderM
         replacement_costs = self.load_replacement_costs_mavrouli()
         self.assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(gpkg_exposure, replacement_costs)
         self.assertReplacementCostSchemaMatches(replacement_costs, NAME_MAVROULI)
+
+    def test_all_mavrouli_taxonomies_in_exposure_json_have_replacement_costs(self):
+        """
+        Additional test that will make sure that our replacement costs
+        really cover all the possible taxonomies from our exposure json file.
+        """
+        json_exposure = self.load_exposure_json_file_mavrouli()
+        replacement_costs = self.load_replacement_costs_mavrouli()
+        self.assertTaxonomiesFromExposureJsonAndReplacementCostsMatches(json_exposure, replacement_costs)
 
 class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
