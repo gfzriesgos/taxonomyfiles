@@ -161,6 +161,16 @@ class FileLoaderMixin():
 
         return read_json(replacement_costs_json_file)
 
+    def load_replacement_costs_mavrouli(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        replacement_costs_json_file = os.path.join(
+            current_dir,
+            'replacement_costs',
+            'Replacement_cost_MAVROULI_Lahar_v1.json',
+        )
+
+        return read_json(replacement_costs_json_file)
+
     def load_tax_schema_mapping_sara_to_suppasri(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         tax_schema_mapping_json_file = os.path.join(
@@ -1102,6 +1112,15 @@ class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderM
         """
         gpkg_exposure_mavrouli = self.load_exposure_gpkg_file_mavrouli()
         self.assertGpkgExposureStructureMatches(gpkg_exposure_mavrouli)
+
+    def test_all_mavrouli_taxonomies_in_exposure_model_have_replacement_costs(self):
+        """
+        Tests that we have replacement costs for all the mavrouli taxonomies.
+        """
+        gpkg_exposure = self.load_exposure_gpkg_file_mavrouli()
+        replacement_costs = self.load_replacement_costs_mavrouli()
+        self.assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(gpkg_exposure, replacement_costs)
+        self.assertReplacementCostSchemaMatches(replacement_costs, NAME_MAVROULI)
 
 class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
