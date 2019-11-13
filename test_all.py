@@ -40,6 +40,27 @@ class FileLoaderMixin():
         json_exposure = read_json(exposure_json_file)
         return json_exposure
 
+    def load_exposure_json_file_mavrouli(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_json_file = os.path.join(
+            current_dir,
+            'assetmaster',
+            'Lahars_Mavrouli_et_al_2014_asset_master.json', 
+        )
+
+        json_exposure = read_json(exposure_json_file)
+        return json_exposure
+    def load_exposure_json_file_sara(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        exposure_json_file = os.path.join(
+            current_dir,
+            'assetmaster', 
+            'SARA_v1.0_asset_master.json'
+        )
+
+        json_exposure = read_json(exposure_json_file)
+        return json_exposure
+
     def load_exposure_gpkg_file_sara(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         exposure_gpkg_file = os.path.join(
@@ -1065,6 +1086,15 @@ class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderM
     def test_fragility_file_matches_expected_structure(self):
         fragility = self.load_fragility_mavrouli()
         self.assertFragilityStructureMatches(fragility)
+
+    def test_all_mavrouli_taxonomies_in_exposure_model_are_defined_in_json(self):
+        """
+        Because we have a list of all the taxonomies that can
+        be there in the exposure model for lahars, we want to test it.
+        """
+        json_exposure = self.load_exposure_json_file_mavrouli()
+        gpkg_exposure = self.load_exposure_gpkg_file_mavrouli()
+        self.assertTaxonomiesFromExposureJsonAndGpkgMatches(json_exposure, gpkg_exposure)
 
     def test_gpkg_has_expected_structure(self):
         """
