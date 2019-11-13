@@ -45,7 +45,7 @@ class FileLoaderMixin():
         exposure_json_file = os.path.join(
             current_dir,
             'assetmaster',
-            'Lahars_Mavrouli_et_al_2014_asset_master.json', 
+            'Mavrouli_et_al_2014_meta.json',
         )
 
         json_exposure = read_json(exposure_json_file)
