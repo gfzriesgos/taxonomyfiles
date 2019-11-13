@@ -171,6 +171,16 @@ class FileLoaderMixin():
 
         return read_json(replacement_costs_json_file)
 
+    def load_replacement_costs_torres(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        replacement_costs_json_file = os.path.join(
+            current_dir,
+            'replacement_costs',
+            'Replacement_cost_ASH-FALL_Torres-Corredor-et-al-2017_v1.json',
+        )
+
+        return read_json(replacement_costs_json_file)
+
     def load_tax_schema_mapping_sara_to_suppasri(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         tax_schema_mapping_json_file = os.path.join(
@@ -1152,6 +1162,16 @@ class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMix
         """
         gpkg_exposure_torres = self.load_exposure_gpkg_file_torres()
         self.assertGpkgExposureStructureMatches(gpkg_exposure_torres)
+
+    def test_all_torres_taxonomies_in_exposure_model_have_replacement_costs(self):
+        """
+        Test that the replacement costs cover all of the taxonomies from
+        the gpkg exposure model.
+        """
+        gpkg_exposure = self.load_exposure_gpkg_file_torres()
+        replacement_costs = self.load_replacement_costs_torres()
+        self.assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(gpkg_exposure, replacement_costs)
+        self.assertReplacementCostSchemaMatches(replacement_costs, NAME_TORRES)
 
 class TestHazus(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
