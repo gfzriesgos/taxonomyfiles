@@ -1129,6 +1129,17 @@ class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderM
         gpkg_exposure_mavrouli = self.load_exposure_gpkg_file_mavrouli()
         self.assertGpkgExposureStructureMatches(gpkg_exposure_mavrouli)
 
+    def test_all_mavrouli_taxonomies_in_exposure_model_have_fragility(self):
+        """
+        Test that all the taxonomies in the exposure model have
+        data in the fraglity model.
+        """
+        gpkg_exposure = self.load_exposure_gpkg_file_mavrouli()
+        fraglity = self.load_fragility_mavrouli()
+
+        self.assertFragilitySchemaMatches(fraglity, NAME_MAVROULI)
+        self.assertTaxonomiesFromExposureGpkgAndFragilitiesMatches(gpkg_exposure, fraglity)
+
     def test_all_mavrouli_taxonomies_in_exposure_model_have_replacement_costs(self):
         """
         Tests that we have replacement costs for all the mavrouli taxonomies.
@@ -1146,6 +1157,41 @@ class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderM
         json_exposure = self.load_exposure_json_file_mavrouli()
         replacement_costs = self.load_replacement_costs_mavrouli()
         self.assertTaxonomiesFromExposureJsonAndReplacementCostsMatches(json_exposure, replacement_costs)
+
+    def test_fragility_mavrouli_covers_all_damage_states(self):
+        """
+        Test that the fragility model covers all of the damage states.
+        """
+        fragility = self.load_fragility_mavrouli()
+        self.assertFragilityDamageStatesAreAllCovered(fragility)
+
+    def test_fragility_mavrouli_imts(self):
+        """
+        We only support one value.
+        """
+        supported_imts = ['maxvelocity']
+        fragility = self.load_fragility_mavrouli()
+
+        self.assertFragilityImtsAreCoveredBySupportedImts(fragility, supported_imts)
+
+    def test_fragility_mavrouli_imus(self):
+        """
+        We only support one value.
+        """
+        supported_imus = ['m/s']
+        fragility = self.load_fragility_mavrouli()
+
+        self.assertFragilityImusAreCoveredBySupportedImus(fragility, supported_imus)
+
+    def test_fragility_shape(self):
+        """
+        We only support logncdf at the moment.
+        """
+        fragility = self.load_fragility_mavrouli()
+        supported_shapes = ['logncdf']
+
+        self.assertFragilityShapesAreCoveredBySupportedShapes(fragility, supported_shapes)
+
 
 class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
