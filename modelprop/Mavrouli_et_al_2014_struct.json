@@ -62,7 +62,7 @@
         "D3_4_mean": 0.84,
         "D3_4_stddev": 0.619
     }, {
-        "taxonomy": "RC_HD",
+        "taxonomy": "RC_S_HD",
         "D2_mean": 0.39,
         "D2_stddev": 0.245,
         "D3_mean": 0.5,
