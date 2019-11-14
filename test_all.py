@@ -1344,6 +1344,40 @@ class TestTorresToMavrouli(unittest.TestCase, TaxonomyAssertionMixin, FileLoader
             tax_schema_mapping
         )
 
+    def test_all_source_damage_states_in_ds_schema_mappings(self):
+        """
+        This tests that all of our source damage states
+        are covered by the damage state mapping.
+        """
+        fragility_torres = self.load_fragility_torres()
+        ds_schema_mapings_torres_to_mavrouli = self.load_ds_schema_mappings_torres_to_mavrouli()
+
+        self.assertAllFragilityDamageStatesCoveredBySchemaSourceDamageStates(fragility_torres, ds_schema_mapings_torres_to_mavrouli)
+
+    def test_all_target_damage_states_in_fragility_model(self):
+        """
+        We must make sure that all our target damage states have
+        asociated fragility functions.
+        """
+        fragility_mavrouli= self.load_fragility_mavrouli()
+
+        ds_schema_mapings_torres_to_mavrouli = self.load_ds_schema_mappings_torres_to_mavrouli()
+
+        self.assertAllTargetDamageStatesCoveredByFragilityDamageStates(ds_schema_mapings_torres_to_mavrouli, fragility_mavrouli)
+
+    def test_all_damage_state_mappings_use_right_schemas(self):
+        """
+        We must make sure that the source schema is right.
+        """
+
+        ds_schema_mapings_torres_to_mavrouli = self.load_ds_schema_mappings_torres_to_mavrouli()
+
+        self.assertDamageStateMappingsSourceSchemaMatches(ds_schema_mapings_torres_to_mavrouli, NAME_TORRES)
+        self.assertDamageStateMappingsTargetSchemaMatches(ds_schema_mapings_torres_to_mavrouli, NAME_MAVROULI)
+
+
+
+
 
 class TestHazus(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
