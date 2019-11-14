@@ -1193,6 +1193,8 @@ class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderM
         self.assertFragilityShapesAreCoveredBySupportedShapes(fragility, supported_shapes)
 
 
+
+
 class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
     This is the test case for the Torres files (ashfalls).
@@ -1209,6 +1211,17 @@ class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMix
         gpkg_exposure_torres = self.load_exposure_gpkg_file_torres()
         self.assertGpkgExposureStructureMatches(gpkg_exposure_torres)
 
+    def test_all_torres_taxonomies_in_exposure_model_have_fragility(self):
+        """
+        Test that all the taxonomies in the expsoure model have
+        data in the fragility model.
+        """
+        gpkg_exposure = self.load_exposure_gpkg_file_torres()
+        fragility = self.load_fragility_torres()
+
+        self.assertFragilitySchemaMatches(fragility, NAME_TORRES)
+        self.assertTaxonomiesFromExposureGpkgAndFragilitiesMatches(gpkg_exposure, fragility)
+
     def test_all_torres_taxonomies_in_exposure_model_have_replacement_costs(self):
         """
         Test that the replacement costs cover all of the taxonomies from
@@ -1218,6 +1231,37 @@ class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMix
         replacement_costs = self.load_replacement_costs_torres()
         self.assertTaxonomiesFromExposureGpkgAndReplacementCostsMatches(gpkg_exposure, replacement_costs)
         self.assertReplacementCostSchemaMatches(replacement_costs, NAME_TORRES)
+
+    def test_fragility_torres_covers_all_damage_states(self):
+        """
+        Test that the fragility model covers all the damage states.
+        """
+        fragility = self.load_fragility_torres()
+        self.assertFragilityDamageStatesAreAllCovered(fragility)
+
+    def test_fragility_torres_imts(self):
+        """
+        Test for supported imts.
+        """
+        supported_imts = ['load']
+        fragility = self.load_fragility_torres()
+        
+        self.assertFragilityImtsAreCoveredBySupportedImts(fragility, supported_imts)
+
+    def test_fragility_torres_imus(self):
+        """
+        Test that the fragility model uses only supported iums.
+        """
+        supported_imus = ['kPa']
+        fragility = self.load_fragility_torres()
+
+        self.assertFragilityImusAreCoveredBySupportedImus(fragility, supported_imus)
+
+    def test_fragility_shape(self):
+        fragility = self.load_fragility_torres()
+        supported_shapes = ['logncdf']
+
+        self.assertFragilityShapesAreCoveredBySupportedShapes(fragility, supported_shapes)
 
 class TestHazus(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
