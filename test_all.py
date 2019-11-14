@@ -191,6 +191,17 @@ class FileLoaderMixin():
 
         return read_json(tax_schema_mapping_json_file)
 
+    def load_tax_schema_mapping_torres_to_mavrouli(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        tax_schema_mapping_json_file = os.path.join(
+            current_dir,
+            'tax_schemamappings',
+            'Conversion_Matrix_Torres-Corredor-et-al-2017_Mavrouli-et-al-2014_completed.json', 
+        )
+
+        return read_json(tax_schema_mapping_json_file)
+
+
     def load_fragility_suppasri(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         fragility_json_file = os.path.join(
@@ -220,6 +231,24 @@ class FileLoaderMixin():
 
         return result
 
+    def load_ds_schema_mappings_torres_to_mavrouli(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        ds_schema_mapping_json_files = glob.glob(os.path.join(
+            current_dir,
+            'ds_schemamappings',
+            '*', 
+            '*.json', 
+        ))
+
+        ds_schema_mappings = [read_json(x) for x in ds_schema_mapping_json_files]
+
+        result = [
+            mapping for mapping in ds_schema_mappings
+            if mapping['source_schema'] == NAME_TORRES
+            and mapping['target_schema'] == NAME_MAVROULI
+        ]
+
+        return result
 
 
 
@@ -1262,6 +1291,59 @@ class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMix
         supported_shapes = ['logncdf']
 
         self.assertFragilityShapesAreCoveredBySupportedShapes(fragility, supported_shapes)
+
+class TestTorresToMavrouli(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
+    """
+    This is the test case for the conversion of the torres to mavrouli schema.
+    """
+
+    def test_all_torres_taxonomies_are_covered_by_tax_schema_mapping(self):
+        """
+        This is the test that we can map all of the taxonomies
+        from torress to mavrouli.
+        """
+        gpkg_exposure_torres = self.load_exposure_gpkg_file_torres()
+        tax_schema_mappings_torres_to_mavrouli = self.load_tax_schema_mapping_torres_to_mavrouli()
+
+        self.assertTaxonomiesFromExposureGpkgAndSourceTaxonomiesForTaxMappingMatches(
+            gpkg_exposure_torres,
+            tax_schema_mappings_torres_to_mavrouli
+        )
+
+    def test_target_taxonomies_sum_to_1(self):
+        """
+        We must make sure that we don't add or remove
+        a building by the schame mapping for the taxonomy mapping.
+        """
+        tax_schema_mappings_torres_to_mavrouli = self.load_tax_schema_mapping_torres_to_mavrouli()
+        self.assertTaxonomySchemaMappingsSumTo1(tax_schema_mappings_torres_to_mavrouli)
+
+    def test_target_taxonomies_are_in_fragility_model(self):
+        """
+        We aösp must make sure that we have tragility models for all of your
+        target taxonomies.
+        """
+        tax_schema_mappings_torres_to_mavrouli = self.load_tax_schema_mapping_torres_to_mavrouli()
+        fragility = self.load_fragility_mavrouli()
+
+        self.assertTaxonomyTargetSchemaMappingCoveredByFragilityModel(
+            tax_schema_mappings_torres_to_mavrouli,
+            fragility
+        )
+
+    def test_damage_state_specifics_cover_all_tax_mappings(self):
+        """
+        We must make sure that we can be sure, that all the
+        damage state mappings are covered. As source we use the tax schema mapping.
+        """
+        tax_schema_mapping = self.load_tax_schema_mapping_torres_to_mavrouli()
+        ds_schema_mappings = self.load_ds_schema_mappings_torres_to_mavrouli()
+
+        self.assertDamageStateMappingsForAllSourceTargetCombinationsByTaxMapping(
+            ds_schema_mappings,
+            tax_schema_mapping
+        )
+
 
 class TestHazus(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
