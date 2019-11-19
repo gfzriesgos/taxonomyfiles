@@ -583,11 +583,51 @@ class TaxonomyAssertionMixin():
             self.assertIn('imu', dataset.keys())
             self.assertIsNotNone(dataset['imu'])
 
-
-
     def assertFragilityShapesAreCoveredBySupportedShapes(self, fragility_data, supported_schapes):
         shape = fragility_data['meta']['shape']
         self.assertIn(shape, supported_schapes)
+
+    def assertReplacementCostsAggregate(self, replacement_costs):
+
+        def get_paths(source_ds, target_ds, matrix):
+            possible_next_steps = [x for x in matrix.index if x > source_ds and x <= target_ds]
+            for next_step in possible_next_steps:
+                path = [(source_ds, next_step)]
+                next_paths = list(get_paths(next_step, target_ds, matrix))
+                if next_paths:
+                    for next_path in next_paths:
+                        yield path + next_path
+                else:
+                    yield path
+
+        def get_sum(path, matrix):
+            sum_so_far = 0
+            for source_ds, target_ds in path:
+                inner_value = matrix[source_ds].loc[target_ds]
+                sum_so_far += inner_value
+            return sum_so_far
+
+        for taxonomy_dataset in replacement_costs['data']:
+            loss_matrix = taxonomy_dataset['loss_matrix']
+            
+            matrix = pd.DataFrame(loss_matrix).fillna(0)
+            matrix.columns = [int(x) for x in matrix.columns]
+            matrix.index = [int(x) for x in matrix.index]
+
+            # index are the target damage states
+            # columns are the source damage states
+            
+            # now we want to check all the ways from
+            # the 0 to the higher damage states
+            # and make sure that the sum for all of them match
+            for source_ds in matrix.columns:
+                for target_ds in matrix.index:
+                    if target_ds > source_ds:
+                        paths = [x for x in get_paths(source_ds, target_ds, matrix)]
+                        sums = [get_sum(path, matrix) for path in paths]
+                        sum_set = set(sums)
+                        self.assertEqual(len(sum_set), 1)
+            
 
 class TestSaraPeru(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
@@ -768,6 +808,16 @@ class TestSara(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataG
 
         self.assertFragilityDamageStatesAreAllCoveredByReplacementCosts(fragility, replacement_costs)
 
+    def test_replacement_costs_aggregate(self):
+        """
+        Test that all the replacement costs aggregate in a meaningful way.
+        So if we go from no-damage to damage state 1 and then to full damage,
+        we expect the very same replacement costs as going straight to
+        the full damage.
+        """
+        replacement_costs = self.load_replacement_costs_sara()
+        self.assertReplacementCostsAggregate(replacement_costs)
+
 
 class TestSaraToSuppasri(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
@@ -896,6 +946,15 @@ class TestSaraToSuppasri(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMi
         replacement_costs = self.load_replacement_costs_suppasri()
 
         self.assertFragilityDamageStatesAreAllCoveredByReplacementCosts(fragility, replacement_costs)
+
+    @unittest.skip('It is not the case, but currently we are fine with that')
+    def test_replacement_costs_aggregate(self):
+        """
+        Also for suppasri we want to make sure that our replacement costs
+        aggregate in a meaningful way.
+        """
+        replacement_costs = self.load_replacement_costs_suppasri()
+        self.assertReplacementCostsAggregate(replacement_costs)
 
 
 class TestTaxMappingFiles(unittest.TestCase):
@@ -1221,6 +1280,16 @@ class TestMavrouliEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderM
 
         self.assertFragilityShapesAreCoveredBySupportedShapes(fragility, supported_shapes)
 
+    @unittest.skip('It is not the case, but currently we are fine with that')
+    def test_replacement_costs_aggregate(self):
+        """
+        Test that all the replacement costs aggregate in a meaningful way.
+        So if we go from no-damage to damage state 1 and then to full damage,
+        we expect the very same replacement costs as going straight to
+        the full damage.
+        """
+        replacement_costs = self.load_replacement_costs_mavrouli()
+        self.assertReplacementCostsAggregate(replacement_costs)
 
 
 
@@ -1291,6 +1360,17 @@ class TestTorresEcuador(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMix
         supported_shapes = ['logncdf']
 
         self.assertFragilityShapesAreCoveredBySupportedShapes(fragility, supported_shapes)
+
+    @unittest.skip('It is not the case, but currently we are fine with that')
+    def test_replacement_costs_aggregate(self):
+        """
+        Test that all the replacement costs aggregate in a meaningful way.
+        So if we go from no-damage to damage state 1 and then to full damage,
+        we expect the very same replacement costs as going straight to
+        the full damage.
+        """
+        replacement_costs = self.load_replacement_costs_torres()
+        self.assertReplacementCostsAggregate(replacement_costs)
 
 class TestTorresToMavrouli(unittest.TestCase, TaxonomyAssertionMixin, FileLoaderMixin, DataGetterMixin):
     """
