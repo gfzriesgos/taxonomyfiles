@@ -66,7 +66,7 @@ class FileLoaderMixin():
         exposure_gpkg_file = os.path.join(
             current_dir,
             'assetmaster',
-            'SARA_v1.0_data.gpkg',
+            'Valparaiso_Vina_LULC_V1.gpkg',
         )
 
         return gpd.read_file(exposure_gpkg_file)
@@ -536,17 +536,18 @@ class TaxonomyAssertionMixin():
 
 
     def assertGpkgExposureStructureMatches(self, gpkg_data):
-        expected_top_level_columns = ['gid', 'name', 'expo', 'geometry']
+        expected_top_level_columns = ['gid', 'expo', 'geometry']
         actual_columns = gpkg_data.columns
 
         for column in expected_top_level_columns:
             self.assertIn(column, actual_columns)
 
         for column in actual_columns:
-            if column != 'id':
+            # We ignore it if we have an id or an name column.
+            if column not in ['id', 'name']:
                 self.assertIn(column, expected_top_level_columns)
 
-        expected_expo_columns = ['id', 'Region', 'Taxonomy', 'Dwellings', 'Buildings', 'Repl-cost-USD-bdg', 'Population', 'name', 'Damage']
+        expected_expo_columns = ['id', 'Taxonomy', 'Dwellings', 'Buildings', 'Repl-cost-USD-bdg', 'Population', 'Damage']
 
         for _, row in gpkg_data.iterrows():
             self.assertEqual(type(row['expo']), str)
@@ -555,7 +556,15 @@ class TaxonomyAssertionMixin():
 
             actual_expo_columns = expo.columns
 
-            self.assertEqual(set(expected_expo_columns), set(actual_expo_columns))
+            for column in expected_expo_columns:
+                self.assertIn(column, actual_expo_columns)
+
+            for column in actual_expo_columns:
+                # If we have name or Region columns in the actual dataset
+                # we will ignore them here.
+                if column not in ['name', 'Region']:
+                    self.assertIn(column, expected_expo_columns)
+
             self.assertIn(expo.dtypes['Buildings'], [np.dtype('float64'), np.dtype('int64')])
 
     def assertFragilityStructureMatches(self, fragility_data):
